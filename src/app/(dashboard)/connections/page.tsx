@@ -59,7 +59,7 @@ export default async function ConnectionsPage() {
         </Card>
       ) : (
         <div className="space-y-2">
-          {connections.map((conn) => (
+          {connections.map((conn: typeof connections[number]) => (
             <Card key={conn.id} className="rounded-xl border-zinc-100 shadow-none">
               <CardContent className="flex items-center justify-between px-5 py-4">
                 <div className="flex items-center gap-4">

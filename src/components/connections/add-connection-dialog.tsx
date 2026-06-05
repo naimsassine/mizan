@@ -18,7 +18,7 @@ const providers = [
 
 export function AddConnectionDialog() {
   const [open, setOpen] = useState(false)
-  const [provider, setProvider] = useState("")
+  const [provider, setProvider] = useState<string>("")
   const [apiKey, setApiKey] = useState("")
   const [error, setError] = useState("")
   const [isPending, startTransition] = useTransition()
@@ -44,11 +44,13 @@ export function AddConnectionDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" className="bg-zinc-900 text-white hover:bg-zinc-700 gap-1.5">
-          <Plus className="h-3.5 w-3.5" />
-          Add connection
-        </Button>
+      <DialogTrigger
+        render={
+          <Button size="sm" className="bg-zinc-900 text-white hover:bg-zinc-700 gap-1.5" />
+        }
+      >
+        <Plus className="h-3.5 w-3.5" />
+        Add connection
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
@@ -59,7 +61,12 @@ export function AddConnectionDialog() {
         <form onSubmit={handleSubmit} className="mt-2 space-y-4">
           <div className="space-y-1.5">
             <Label className="text-xs text-zinc-600">Provider</Label>
-            <Select value={provider} onValueChange={setProvider}>
+            <Select
+              value={provider}
+              onValueChange={(value) => {
+                if (value !== null) setProvider(value)
+              }}
+            >
               <SelectTrigger className="h-9 text-sm">
                 <SelectValue placeholder="Select a provider" />
               </SelectTrigger>

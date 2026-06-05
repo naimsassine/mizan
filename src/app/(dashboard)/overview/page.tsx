@@ -1,5 +1,5 @@
 import { auth, currentUser } from "@clerk/nextjs/server"
-import { subDays, format, startOfMonth, endOfMonth } from "date-fns"
+import { subDays, format, startOfMonth, endOfMonth, subMonths } from "date-fns"
 import { prisma } from "@/lib/prisma"
 import { StatCard } from "@/components/dashboard/stat-card"
 import { SpendChart } from "@/components/dashboard/spend-chart"
@@ -8,15 +8,14 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Plug } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Decimal } from "@/generated/prisma/runtime/library"
 
 async function getDashboardData(ownerId: string) {
   const now = new Date()
   const thirtyDaysAgo = subDays(now, 30)
   const monthStart = startOfMonth(now)
   const monthEnd = endOfMonth(now)
-  const lastMonthStart = startOfMonth(subDays(monthStart, 1))
-  const lastMonthEnd = endOfMonth(subDays(monthStart, 1))
+  const lastMonthStart = startOfMonth(subMonths(now, 1))
+  const lastMonthEnd = endOfMonth(subMonths(now, 1))
 
   const [monthlyRecords, last30Days, lastMonthRecords, connections] = await Promise.all([
     prisma.usageRecord.findMany({
@@ -35,12 +34,12 @@ async function getDashboardData(ownerId: string) {
     prisma.providerConnection.count({ where: { ownerId } }),
   ])
 
-  const mtdSpend = monthlyRecords.reduce((s, r) => s + Number(r.costUsd), 0)
-  const lastMonthSpend = lastMonthRecords.reduce((s, r) => s + Number(r.costUsd), 0)
+  const mtdSpend = monthlyRecords.reduce((s: number, r) => s + Number(r.costUsd), 0)
+  const lastMonthSpend = lastMonthRecords.reduce((s: number, r) => s + Number(r.costUsd), 0)
   const spendDelta =
     lastMonthSpend > 0 ? ((mtdSpend - lastMonthSpend) / lastMonthSpend) * 100 : null
   const totalTokens = monthlyRecords.reduce(
-    (s, r) => s + Number(r.inputTokens) + Number(r.outputTokens),
+    (s: number, r) => s + Number(r.inputTokens) + Number(r.outputTokens),
     0
   )
 
@@ -62,7 +61,7 @@ async function getDashboardData(ownerId: string) {
 
   const modelRows = modelRecords.map((r) => ({
     model: r.model,
-    provider: r.provider,
+    provider: r.provider as string,
     costUsd: Number(r._sum.costUsd ?? 0),
     totalTokens:
       Number(r._sum.inputTokens ?? 0) + Number(r._sum.outputTokens ?? 0),
@@ -115,8 +114,12 @@ export default async function OverviewPage() {
                 Connect your first AI provider to start tracking spend.
               </p>
             </div>
-            <Button asChild size="sm" className="bg-zinc-900 text-white hover:bg-zinc-700">
-              <Link href="/connections">Connect a provider</Link>
+            <Button
+              size="sm"
+              className="bg-zinc-900 text-white hover:bg-zinc-700"
+              render={<Link href="/connections" />}
+            >
+              Connect a provider
             </Button>
           </CardContent>
         </Card>

@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <ClerkProvider>
       <html lang="en" className={`${geist.variable} h-full`}>
         <body className="h-full bg-white font-sans antialiased">
-          <TooltipProvider delayDuration={0}>{children}</TooltipProvider>
+          <TooltipProvider>{children}</TooltipProvider>
         </body>
       </html>
     </ClerkProvider>

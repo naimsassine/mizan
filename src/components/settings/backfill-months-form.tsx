@@ -25,7 +25,8 @@ export function BackfillMonthsForm({ defaultMonths, ownerType, ownerId }: Props)
   const [isPending, startTransition] = useTransition()
   const [saved, setSaved] = useState(false)
 
-  function handleChange(value: string) {
+  function handleChange(value: string | null) {
+    if (!value) return
     setMonths(value)
     setSaved(false)
     startTransition(async () => {
