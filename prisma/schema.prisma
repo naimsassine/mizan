@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum OwnerType {
+  user
+  org
+}
+
+enum Provider {
+  openai
+  anthropic
+  gemini
+  bedrock
+}
+
+enum ConnectionStatus {
+  active
+  error
+  expired
+}
+
+enum BackfillStatus {
+  pending
+  in_progress
+  complete
+  failed
+}
+
+enum UsageSource {
+  api_poll
+  receipt_email
+  receipt_upload
+}
+
+enum BudgetPeriod {
+  daily
+  weekly
+  monthly
+}
+
+model Profile {
+  clerkUserId String   @id @map("clerk_user_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("profiles")
+}
+
+model OrgProfile {
+  clerkOrgId String   @id @map("clerk_org_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("org_profiles")
+}
+
+model ProviderConnection {
+  id             String           @id @default(uuid())
+  ownerId        String           @map("owner_id")
+  ownerType      OwnerType        @map("owner_type")
+  provider       Provider
+  encCredentials String           @map("enc_credentials")
+  status         ConnectionStatus @default(active)
+  lastSyncedAt   DateTime?        @map("last_synced_at")
+  backfillFrom   DateTime         @map("backfill_from") @db.Date
+  backfillStatus BackfillStatus   @default(pending) @map("backfill_status")
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  usageRecords UsageRecord[]
+
+  @@index([ownerId, ownerType])
+  @@map("provider_connections")
+}
+
+model UsageRecord {
+  id           String      @id @default(uuid())
+  connectionId String      @map("connection_id")
+  ownerId      String      @map("owner_id")
+  ownerType    OwnerType   @map("owner_type")
+  date         DateTime    @db.Date
+  provider     Provider
+  model        String
+  inputTokens  BigInt      @default(0) @map("input_tokens")
+  outputTokens BigInt      @default(0) @map("output_tokens")
+  costUsd      Decimal     @map("cost_usd") @db.Decimal(12, 6)
+  source       UsageSource @default(api_poll)
+  rawPayload   Json?       @map("raw_payload")
+
+  connection ProviderConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, date, model])
+  @@index([ownerId, ownerType, date])
+  @@map("usage_records")
+}
+
+model Receipt {
+  id                 String    @id @default(uuid())
+  ownerId            String    @map("owner_id")
+  ownerType          OwnerType @map("owner_type")
+  provider           String?
+  amountUsd          Decimal   @map("amount_usd") @db.Decimal(10, 2)
+  billingPeriodStart DateTime? @map("billing_period_start") @db.Date
+  billingPeriodEnd   DateTime? @map("billing_period_end") @db.Date
+  invoiceId          String?   @map("invoice_id")
+  source             String
+  parsedAt           DateTime? @map("parsed_at")
+  rawContent         String?   @map("raw_content") @db.Text
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  @@map("receipts")
+}
+
+model BudgetRule {
+  id         String       @id @default(uuid())
+  ownerId    String       @map("owner_id")
+  ownerType  OwnerType    @map("owner_type")
+  provider   Provider?
+  period     BudgetPeriod
+  limitUsd   Decimal      @map("limit_usd") @db.Decimal(10, 2)
+  alertAtPct Int          @default(80) @map("alert_at_pct")
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  alerts Alert[]
+
+  @@map("budget_rules")
+}
+
+model Alert {
+  id             String    @id @default(uuid())
+  budgetRuleId   String    @map("budget_rule_id")
+  triggeredAt    DateTime  @default(now()) @map("triggered_at")
+  spendUsd       Decimal   @map("spend_usd") @db.Decimal(10, 2)
+  acknowledgedAt DateTime? @map("acknowledged_at")
+
+  budgetRule BudgetRule @relation(fields: [budgetRuleId], references: [id], onDelete: Cascade)
+
+  @@map("alerts")
+}
+
+model UserSettings {
+  clerkUserId       String  @id @map("clerk_user_id")
+  backfillMonths    Int     @default(3) @map("backfill_months")
+  notificationEmail Boolean @default(true) @map("notification_email")
+
+  @@map("user_settings")
+}
+
+model OrgSettings {
+  clerkOrgId     String @id @map("clerk_org_id")
+  backfillMonths Int    @default(3) @map("backfill_months")
+
+  @@map("org_settings")
+}
