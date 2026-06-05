@@ -19,12 +19,24 @@ interface SpendChartProps {
   data: SpendDataPoint[]
 }
 
-function CustomTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null
+interface TooltipPayload {
+  value: number
+}
+
+function CustomTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean
+  payload?: TooltipPayload[]
+  label?: string
+}) {
+  if (!active || !payload?.length || !label) return null
   return (
     <div className="rounded-lg border border-zinc-100 bg-white px-3 py-2.5 shadow-md text-xs">
-      <p className="text-zinc-400 mb-0.5">{format(parseISO(label), "MMM d, yyyy")}</p>
-      <p className="font-mono font-semibold text-zinc-900 tabular-nums">
+      <p className="mb-0.5 text-zinc-400">{format(parseISO(label), "MMM d, yyyy")}</p>
+      <p className="font-mono font-semibold tabular-nums text-zinc-900">
         ${payload[0].value.toFixed(2)}
       </p>
     </div>

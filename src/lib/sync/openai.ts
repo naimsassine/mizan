@@ -4,43 +4,64 @@ import { eachDayOfInterval, format, getUnixTime, startOfDay, endOfDay, subDays }
 
 // Prices per 1M tokens in USD (input / output)
 const PRICING: Record<string, { input: number; output: number }> = {
+  // GPT-4.1 family (Apr 2025)
+  "gpt-4.1":                   { input: 2,    output: 8 },
+  "gpt-4.1-mini":              { input: 0.4,  output: 1.6 },
+  "gpt-4.1-nano":              { input: 0.1,  output: 0.4 },
+  // GPT-4o family
   "gpt-4o":                    { input: 2.5,  output: 10 },
   "gpt-4o-2024-11-20":         { input: 2.5,  output: 10 },
   "gpt-4o-2024-08-06":         { input: 2.5,  output: 10 },
   "gpt-4o-2024-05-13":         { input: 5,    output: 15 },
   "gpt-4o-mini":               { input: 0.15, output: 0.6 },
   "gpt-4o-mini-2024-07-18":    { input: 0.15, output: 0.6 },
+  // GPT-4.5 (experimental/preview — higher cost)
+  "gpt-4.5-preview":           { input: 75,   output: 150 },
+  // GPT-4 Turbo / GPT-4
   "gpt-4-turbo":               { input: 10,   output: 30 },
   "gpt-4-turbo-2024-04-09":    { input: 10,   output: 30 },
   "gpt-4-turbo-preview":       { input: 10,   output: 30 },
   "gpt-4":                     { input: 30,   output: 60 },
   "gpt-4-0613":                { input: 30,   output: 60 },
+  // GPT-3.5
   "gpt-3.5-turbo":             { input: 0.5,  output: 1.5 },
   "gpt-3.5-turbo-0125":        { input: 0.5,  output: 1.5 },
   "gpt-3.5-turbo-instruct":    { input: 1.5,  output: 2 },
+  // o-series reasoning models
   "o1":                        { input: 15,   output: 60 },
   "o1-2024-12-17":             { input: 15,   output: 60 },
   "o1-mini":                   { input: 3,    output: 12 },
   "o1-mini-2024-09-12":        { input: 3,    output: 12 },
   "o1-preview":                { input: 15,   output: 60 },
-  "o3-mini":                   { input: 1.1,  output: 4.4 },
+  "o1-pro":                    { input: 150,  output: 600 },
   "o3":                        { input: 10,   output: 40 },
+  "o3-mini":                   { input: 1.1,  output: 4.4 },
+  "o4-mini":                   { input: 1.1,  output: 4.4 },
+  // Embeddings
   "text-embedding-3-small":    { input: 0.02, output: 0 },
   "text-embedding-3-large":    { input: 0.13, output: 0 },
   "text-embedding-ada-002":    { input: 0.1,  output: 0 },
 }
 
-function modelPrice(model: string) {
+// Models whose cost cannot be estimated — stored at $0 with raw payload intact
+const UNPRICED_PREFIXES = ["dall-e", "tts", "whisper", "babbage", "davinci", "curie", "ada-"]
+
+function modelPrice(model: string): { input: number; output: number } | null {
   if (PRICING[model]) return PRICING[model]
-  // prefix match: "gpt-4o-mini-..." → gpt-4o-mini
+  // prefix match: "gpt-4.1-2025-..." → gpt-4.1
   for (const [key, p] of Object.entries(PRICING)) {
     if (model.startsWith(key)) return p
   }
-  return { input: 2.5, output: 10 } // fallback to gpt-4o rates
+  // Models we explicitly can't price (non-completion APIs)
+  if (UNPRICED_PREFIXES.some((pfx) => model.startsWith(pfx))) return null
+  // Unknown model — log once so the pricing table can be updated
+  console.warn(`[mizan] Unknown OpenAI model pricing: "${model}" — cost stored as $0`)
+  return null
 }
 
 function calcCost(model: string, inputTokens: number, outputTokens: number): number {
   const p = modelPrice(model)
+  if (!p) return 0
   return (inputTokens / 1_000_000) * p.input + (outputTokens / 1_000_000) * p.output
 }
 

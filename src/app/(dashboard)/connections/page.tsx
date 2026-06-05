@@ -97,7 +97,7 @@ export default async function ConnectionsPage() {
                   >
                     {conn.status}
                   </Badge>
-                  <DeleteConnectionButton id={conn.id} />
+                  <DeleteConnectionButton id={conn.id} provider={conn.provider} />
                 </div>
               </CardContent>
             </Card>
