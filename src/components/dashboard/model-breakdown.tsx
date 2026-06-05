@@ -22,19 +22,19 @@ const providerColors: Record<string, string> = {
 
 export function ModelBreakdown({ rows }: ModelBreakdownProps) {
   return (
-    <Card className="rounded-xl border-zinc-100 shadow-none">
-      <CardHeader className="px-5 pb-2 pt-5">
+    <Card className="rounded-xl border-zinc-100 bg-white shadow-none">
+      <CardHeader className="px-5 pb-3 pt-5">
         <p className="text-sm font-medium text-zinc-900">By model</p>
       </CardHeader>
       <CardContent className="px-5 pb-5">
         {rows.length === 0 ? (
           <p className="py-6 text-center text-xs text-zinc-400">No usage data yet</p>
         ) : (
-          <div className="space-y-3">
-            {rows.map((row) => (
-              <div key={`${row.provider}-${row.model}`} className="flex items-center gap-3">
+          <div className="space-y-4">
+            {rows.map((row, i) => (
+              <div key={`${row.provider}-${row.model}`} className="flex items-center gap-4">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1.5">
                     <span className="text-xs font-medium text-zinc-900 truncate">{row.model}</span>
                     <Badge
                       variant="outline"
@@ -43,16 +43,22 @@ export function ModelBreakdown({ rows }: ModelBreakdownProps) {
                       {row.provider}
                     </Badge>
                   </div>
-                  <div className="h-1.5 w-full rounded-full bg-zinc-100">
+                  <div className="h-1.5 w-full rounded-full bg-zinc-100 overflow-hidden">
                     <div
                       className="h-1.5 rounded-full bg-zinc-900"
-                      style={{ width: `${row.pct}%` }}
+                      style={{
+                        width: `${row.pct}%`,
+                        transformOrigin: "left",
+                        animation: `expand-bar 0.7s cubic-bezier(0.4, 0, 0.2, 1) ${i * 80}ms both`,
+                      }}
                     />
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-xs font-medium text-zinc-900">${row.costUsd.toFixed(2)}</p>
-                  <p className="text-[10px] text-zinc-400">{row.pct.toFixed(0)}%</p>
+                  <p className="font-mono text-xs font-semibold text-zinc-900 tabular-nums">
+                    ${row.costUsd.toFixed(2)}
+                  </p>
+                  <p className="text-[10px] text-zinc-400 tabular-nums">{row.pct.toFixed(0)}%</p>
                 </div>
               </div>
             ))}

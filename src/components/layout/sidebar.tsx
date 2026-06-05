@@ -22,12 +22,12 @@ export function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-10 flex w-14 flex-col border-r border-zinc-100 bg-white">
+    <aside className="fixed inset-y-0 left-0 z-10 flex w-14 shrink-0 flex-col border-r border-zinc-100 bg-white">
       {/* Logo */}
       <div className="flex h-14 items-center justify-center border-b border-zinc-100">
         <Link
           href="/overview"
-          className="flex items-center justify-center rounded-lg p-1.5 text-zinc-900 hover:bg-zinc-100 transition-colors"
+          className="flex items-center justify-center rounded-lg p-1.5 text-zinc-900 hover:bg-zinc-100 transition-all duration-200"
         >
           <Scale className="h-5 w-5" strokeWidth={1.5} />
         </Link>
@@ -44,10 +44,10 @@ export function Sidebar() {
                   <Link
                     href={href}
                     className={cn(
-                      "flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
+                      "flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-200",
                       isActive
-                        ? "bg-zinc-100 text-zinc-900"
-                        : "text-zinc-400 hover:bg-zinc-50 hover:text-zinc-700"
+                        ? "bg-zinc-900 text-white shadow-sm"
+                        : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900"
                     )}
                   />
                 }
@@ -72,10 +72,10 @@ export function Sidebar() {
                 <Link
                   href={href}
                   className={cn(
-                    "flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
+                    "flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-200",
                     pathname === href
-                      ? "bg-zinc-100 text-zinc-900"
-                      : "text-zinc-400 hover:bg-zinc-50 hover:text-zinc-700"
+                      ? "bg-zinc-900 text-white shadow-sm"
+                      : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900"
                   )}
                 />
               }
@@ -106,7 +106,7 @@ export function Sidebar() {
               elements: {
                 rootBox: "w-full",
                 organizationSwitcherTrigger:
-                  "w-full h-8 rounded-lg px-2 text-xs text-zinc-500 hover:bg-zinc-50 justify-start gap-1.5 truncate",
+                  "w-full h-8 rounded-lg px-2 text-xs text-zinc-500 hover:bg-zinc-50 justify-start gap-1.5 truncate transition-colors duration-200",
               },
             }}
           />

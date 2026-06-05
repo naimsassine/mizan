@@ -94,19 +94,19 @@ export default async function OverviewPage() {
     <div className="mx-auto max-w-5xl px-8 py-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
+        <h1 className="text-[1.6rem] font-semibold tracking-tight text-zinc-900 leading-tight">
           {greeting},{" "}
           <span className="text-zinc-400">{firstName}</span>
         </h1>
-        <p className="mt-1 text-sm text-zinc-500">here&apos;s your AI spend at a glance.</p>
+        <p className="mt-1.5 text-sm text-zinc-500">here&apos;s your AI spend at a glance.</p>
       </div>
 
       {connections === 0 ? (
         /* Empty state */
-        <Card className="rounded-xl border-zinc-100 shadow-none">
-          <CardContent className="flex flex-col items-center gap-4 py-16">
+        <Card className="rounded-xl border-zinc-100 bg-white shadow-none">
+          <CardContent className="flex flex-col items-center gap-4 py-20">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100">
-              <Plug className="h-5 w-5 text-zinc-500" strokeWidth={1.5} />
+              <Plug className="h-5 w-5 text-zinc-400" strokeWidth={1.5} />
             </div>
             <div className="text-center">
               <p className="text-sm font-medium text-zinc-900">No connections yet</p>
@@ -156,7 +156,7 @@ export default async function OverviewPage() {
           </div>
 
           {/* Spend chart */}
-          <Card className="rounded-xl border-zinc-100 shadow-none">
+          <Card className="rounded-xl border-zinc-100 bg-white shadow-none">
             <CardHeader className="px-5 pb-2 pt-5">
               <p className="text-sm font-medium text-zinc-900">Spend — last 30 days</p>
             </CardHeader>
