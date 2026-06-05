@@ -2,9 +2,11 @@
 
 import { auth } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
+import { after } from "next/server"
 import { subMonths, startOfDay } from "date-fns"
 import { prisma } from "@/lib/prisma"
 import { encrypt } from "@/lib/encrypt"
+import { syncOpenAI } from "@/lib/sync/openai"
 
 export async function createConnection(provider: string, apiKey: string) {
   const { userId, orgId } = await auth()
@@ -17,8 +19,9 @@ export async function createConnection(provider: string, apiKey: string) {
   const ownerId = orgId ?? userId
   const ownerType = orgId ? "org" : "user"
 
+  let connectionId: string
   try {
-    await prisma.providerConnection.create({
+    const connection = await prisma.providerConnection.create({
       data: {
         ownerId,
         ownerType: ownerType as "user" | "org",
@@ -28,8 +31,16 @@ export async function createConnection(provider: string, apiKey: string) {
         backfillStatus: "pending",
       },
     })
+    connectionId = connection.id
   } catch {
     return { error: "Failed to save connection. Please try again." }
+  }
+
+  // Trigger sync after the response is sent — non-blocking
+  if (provider === "openai") {
+    after(async () => {
+      await syncOpenAI(connectionId)
+    })
   }
 
   revalidatePath("/connections")

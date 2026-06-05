@@ -116,6 +116,7 @@ export default async function OverviewPage() {
             </div>
             <Button
               size="sm"
+              nativeButton={false}
               className="bg-zinc-900 text-white hover:bg-zinc-700"
               render={<Link href="/connections" />}
             >

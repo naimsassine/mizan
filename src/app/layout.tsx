@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Geist } from "next/font/google"
 import { ClerkProvider } from "@clerk/nextjs"
+import { shadcn } from "@clerk/ui/themes"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import "./globals.css"
 
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ClerkProvider>
+    <ClerkProvider appearance={{ theme: shadcn }}>
       <html lang="en" className={`${geist.variable} h-full`}>
         <body className="h-full bg-white font-sans antialiased">
           <TooltipProvider>{children}</TooltipProvider>
