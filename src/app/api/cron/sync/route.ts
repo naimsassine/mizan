@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { syncOpenAIIncremental } from "@/lib/sync/openai"
+import { syncAnthropicIncremental } from "@/lib/sync/anthropic"
 
 // Called daily by Vercel cron — runs incremental sync for all active connections
 export async function GET(req: Request) {
@@ -10,12 +11,15 @@ export async function GET(req: Request) {
   }
 
   const connections = await prisma.providerConnection.findMany({
-    where: { status: "active", provider: "openai" },
-    select: { id: true },
+    where: { status: "active", provider: { in: ["openai", "anthropic"] } },
+    select: { id: true, provider: true },
   })
 
   await Promise.allSettled(
-    connections.map((c) => syncOpenAIIncremental(c.id))
+    connections.map((c) => {
+      if (c.provider === "anthropic") return syncAnthropicIncremental(c.id)
+      return syncOpenAIIncremental(c.id)
+    })
   )
 
   return NextResponse.json({ synced: connections.length })

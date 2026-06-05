@@ -7,6 +7,7 @@ import { subMonths, startOfDay } from "date-fns"
 import { prisma } from "@/lib/prisma"
 import { encrypt } from "@/lib/encrypt"
 import { syncOpenAI } from "@/lib/sync/openai"
+import { syncAnthropic } from "@/lib/sync/anthropic"
 
 export async function createConnection(provider: string, apiKey: string) {
   const { userId, orgId } = await auth()
@@ -40,6 +41,10 @@ export async function createConnection(provider: string, apiKey: string) {
   if (provider === "openai") {
     after(async () => {
       await syncOpenAI(connectionId)
+    })
+  } else if (provider === "anthropic") {
+    after(async () => {
+      await syncAnthropic(connectionId)
     })
   }
 
