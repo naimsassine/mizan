@@ -13,8 +13,18 @@ const providerColors: Record<string, string> = {
   bedrock: "bg-yellow-50 text-yellow-700 border-yellow-100",
 }
 
+const providerLabel: Record<string, string> = {
+  openai: "OpenAI",
+  anthropic: "Anthropic",
+  gemini: "Gemini",
+  bedrock: "Bedrock",
+}
+
 const VALID_RANGES = [7, 30, 90] as const
 type Range = (typeof VALID_RANGES)[number]
+
+const VALID_PROVIDERS = ["openai", "anthropic", "gemini", "bedrock"] as const
+type ProviderFilter = (typeof VALID_PROVIDERS)[number] | "all"
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -25,20 +35,29 @@ function formatTokens(n: number): string {
 export default async function UsagePage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string }>
+  searchParams: Promise<{ range?: string; provider?: string }>
 }) {
   const { userId, orgId } = await auth()
   const ownerId = orgId ?? userId!
 
-  const { range: rangeParam } = await searchParams
+  const { range: rangeParam, provider: providerParam } = await searchParams
   const days: Range = (VALID_RANGES as readonly number[]).includes(Number(rangeParam))
     ? (Number(rangeParam) as Range)
     : 30
+  const providerFilter: ProviderFilter =
+    (VALID_PROVIDERS as readonly string[]).includes(providerParam ?? "")
+      ? (providerParam as ProviderFilter)
+      : "all"
+
   const fromDate = subDays(new Date(), days)
 
   const records = await prisma.usageRecord.groupBy({
     by: ["date", "model", "provider"],
-    where: { ownerId, date: { gte: fromDate } },
+    where: {
+      ownerId,
+      date: { gte: fromDate },
+      ...(providerFilter !== "all" ? { provider: providerFilter } : {}),
+    },
     _sum: { costUsd: true, inputTokens: true, outputTokens: true },
     orderBy: [{ date: "desc" }],
   })
@@ -49,34 +68,63 @@ export default async function UsagePage({
     0
   )
 
+  function rangeHref(d: number) {
+    const params = new URLSearchParams()
+    params.set("range", String(d))
+    if (providerFilter !== "all") params.set("provider", providerFilter)
+    return `/usage?${params}`
+  }
+
+  function providerHref(p: ProviderFilter) {
+    const params = new URLSearchParams()
+    params.set("range", String(days))
+    if (p !== "all") params.set("provider", p)
+    return `/usage?${params}`
+  }
+
   return (
     <div className="mx-auto max-w-5xl px-8 py-8">
       {/* Header */}
-      <div className="mb-8 flex items-start justify-between">
+      <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-[1.6rem] font-semibold leading-tight tracking-tight text-zinc-900">
             Usage
           </h1>
           <p className="mt-1.5 text-sm text-zinc-500">Token and spend breakdown by model.</p>
         </div>
-
         {/* Range selector */}
         <div className="flex items-center gap-0.5 rounded-lg border border-zinc-200 bg-white p-1">
           {VALID_RANGES.map((d) => (
             <Link
               key={d}
-              href={`/usage?range=${d}`}
+              href={rangeHref(d)}
               className={cn(
                 "rounded-md px-3 py-1.5 text-xs font-medium transition-all duration-150",
-                days === d
-                  ? "bg-zinc-900 text-white shadow-sm"
-                  : "text-zinc-500 hover:text-zinc-900"
+                days === d ? "bg-zinc-900 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-900"
               )}
             >
               {d}d
             </Link>
           ))}
         </div>
+      </div>
+
+      {/* Provider filter */}
+      <div className="mb-6 flex flex-wrap items-center gap-1.5">
+        {(["all", ...VALID_PROVIDERS] as ProviderFilter[]).map((p) => (
+          <Link
+            key={p}
+            href={providerHref(p)}
+            className={cn(
+              "rounded-full border px-3 py-1 text-xs font-medium transition-all duration-150",
+              providerFilter === p
+                ? "border-zinc-900 bg-zinc-900 text-white"
+                : "border-zinc-200 bg-white text-zinc-500 hover:border-zinc-400 hover:text-zinc-900"
+            )}
+          >
+            {p === "all" ? "All providers" : providerLabel[p]}
+          </Link>
+        ))}
       </div>
 
       {/* Summary cards */}
@@ -123,24 +171,12 @@ export default async function UsagePage({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100">
-                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-400">
-                    Date
-                  </th>
-                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-400">
-                    Model
-                  </th>
-                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-400">
-                    Provider
-                  </th>
-                  <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">
-                    Input
-                  </th>
-                  <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">
-                    Output
-                  </th>
-                  <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">
-                    Cost
-                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-400">Date</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-400">Model</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-400">Provider</th>
+                  <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">Input</th>
+                  <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">Output</th>
+                  <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">Cost</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-50">
@@ -149,19 +185,12 @@ export default async function UsagePage({
                     key={`${String(row.date)}-${row.model}-${i}`}
                     className="transition-colors duration-100 hover:bg-zinc-50/70"
                   >
-                    <td className="px-5 py-3 text-xs text-zinc-500">
-                      {format(row.date, "MMM d, yyyy")}
-                    </td>
+                    <td className="px-5 py-3 text-xs text-zinc-500">{format(row.date, "MMM d, yyyy")}</td>
                     <td className="max-w-[200px] px-5 py-3">
-                      <span className="block truncate font-mono text-xs font-medium text-zinc-900">
-                        {row.model}
-                      </span>
+                      <span className="block truncate font-mono text-xs font-medium text-zinc-900">{row.model}</span>
                     </td>
                     <td className="px-5 py-3">
-                      <Badge
-                        variant="outline"
-                        className={`h-4 px-1.5 py-0 text-[10px] ${providerColors[row.provider] ?? ""}`}
-                      >
+                      <Badge variant="outline" className={`h-4 px-1.5 py-0 text-[10px] ${providerColors[row.provider] ?? ""}`}>
                         {row.provider}
                       </Badge>
                     </td>
@@ -177,28 +206,22 @@ export default async function UsagePage({
                   </tr>
                 ))}
               </tbody>
-              {records.length > 0 && (
-                <tfoot>
-                  <tr className="border-t border-zinc-100 bg-zinc-50/60">
-                    <td colSpan={3} className="px-5 py-3 text-xs font-medium text-zinc-500">
-                      {records.length} {records.length === 1 ? "row" : "rows"}
-                    </td>
-                    <td className="px-5 py-3 text-right font-mono text-xs tabular-nums text-zinc-600">
-                      {formatTokens(
-                        records.reduce((s, r) => s + Number(r._sum.inputTokens ?? 0), 0)
-                      )}
-                    </td>
-                    <td className="px-5 py-3 text-right font-mono text-xs tabular-nums text-zinc-600">
-                      {formatTokens(
-                        records.reduce((s, r) => s + Number(r._sum.outputTokens ?? 0), 0)
-                      )}
-                    </td>
-                    <td className="px-5 py-3 text-right font-mono text-xs font-semibold tabular-nums text-zinc-900">
-                      ${totalCost.toFixed(4)}
-                    </td>
-                  </tr>
-                </tfoot>
-              )}
+              <tfoot>
+                <tr className="border-t border-zinc-100 bg-zinc-50/60">
+                  <td colSpan={3} className="px-5 py-3 text-xs font-medium text-zinc-500">
+                    {records.length} {records.length === 1 ? "row" : "rows"}
+                  </td>
+                  <td className="px-5 py-3 text-right font-mono text-xs tabular-nums text-zinc-600">
+                    {formatTokens(records.reduce((s, r) => s + Number(r._sum.inputTokens ?? 0), 0))}
+                  </td>
+                  <td className="px-5 py-3 text-right font-mono text-xs tabular-nums text-zinc-600">
+                    {formatTokens(records.reduce((s, r) => s + Number(r._sum.outputTokens ?? 0), 0))}
+                  </td>
+                  <td className="px-5 py-3 text-right font-mono text-xs font-semibold tabular-nums text-zinc-900">
+                    ${totalCost.toFixed(4)}
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </Card>

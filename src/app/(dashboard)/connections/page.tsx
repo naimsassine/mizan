@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { AddConnectionDialog } from "@/components/connections/add-connection-dialog"
 import { DeleteConnectionButton } from "@/components/connections/delete-connection-button"
+import { SyncButton } from "@/components/connections/sync-button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatDistanceToNow } from "date-fns"
@@ -90,13 +91,14 @@ export default async function ConnectionsPage() {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <Badge
                     variant="outline"
                     className={`text-[10px] px-2 py-0 h-5 ${statusVariant[conn.status] ?? ""}`}
                   >
                     {conn.status}
                   </Badge>
+                  <SyncButton id={conn.id} />
                   <DeleteConnectionButton id={conn.id} provider={conn.provider} />
                 </div>
               </CardContent>
