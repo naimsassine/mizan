@@ -18,7 +18,7 @@ const bottomItems = [
   { href: "/settings", icon: Settings, label: "Settings" },
 ]
 
-export function Sidebar() {
+export function Sidebar({ unackAlerts = 0 }: { unackAlerts?: number }) {
   const pathname = usePathname()
 
   return (
@@ -44,7 +44,7 @@ export function Sidebar() {
                   <Link
                     href={href}
                     className={cn(
-                      "flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-200",
+                      "relative flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-200",
                       isActive
                         ? "bg-zinc-900 text-white shadow-sm"
                         : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900"
@@ -53,6 +53,9 @@ export function Sidebar() {
                 }
               >
                 <Icon className="h-4 w-4" strokeWidth={1.5} />
+                {href === "/alerts" && unackAlerts > 0 && (
+                  <span className="absolute right-1 top-1 flex h-2 w-2 rounded-full bg-red-500" />
+                )}
                 <span className="sr-only">{label}</span>
               </TooltipTrigger>
               <TooltipContent side="right" className="text-xs">

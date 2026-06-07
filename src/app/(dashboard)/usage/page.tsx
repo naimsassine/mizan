@@ -1,10 +1,12 @@
 import { auth } from "@clerk/nextjs/server"
 import { subDays, format } from "date-fns"
 import { prisma } from "@/lib/prisma"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+import { SpendChart } from "@/components/dashboard/spend-chart"
+import { Download } from "lucide-react"
 
 const providerColors: Record<string, string> = {
   openai: "bg-emerald-50 text-emerald-700 border-emerald-100",
@@ -68,6 +70,16 @@ export default async function UsagePage({
     0
   )
 
+  const chartData = Array.from(
+    records.reduce((map, r) => {
+      const key = format(r.date, "yyyy-MM-dd")
+      map.set(key, (map.get(key) ?? 0) + Number(r._sum.costUsd ?? 0))
+      return map
+    }, new Map<string, number>())
+  )
+    .map(([date, cost]) => ({ date, cost }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
   function rangeHref(d: number) {
     const params = new URLSearchParams()
     params.set("range", String(d))
@@ -92,20 +104,30 @@ export default async function UsagePage({
           </h1>
           <p className="mt-1.5 text-sm text-zinc-500">Token and spend breakdown by model.</p>
         </div>
-        {/* Range selector */}
-        <div className="flex items-center gap-0.5 rounded-lg border border-zinc-200 bg-white p-1">
-          {VALID_RANGES.map((d) => (
-            <Link
-              key={d}
-              href={rangeHref(d)}
-              className={cn(
-                "rounded-md px-3 py-1.5 text-xs font-medium transition-all duration-150",
-                days === d ? "bg-zinc-900 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-900"
-              )}
-            >
-              {d}d
-            </Link>
-          ))}
+        <div className="flex items-center gap-2">
+          <a
+            href={`/api/usage/export?range=${days}&provider=${providerFilter}`}
+            download
+            className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-500 transition-all duration-150 hover:border-zinc-300 hover:text-zinc-900"
+          >
+            <Download className="h-3 w-3" />
+            Export CSV
+          </a>
+          {/* Range selector */}
+          <div className="flex items-center gap-0.5 rounded-lg border border-zinc-200 bg-white p-1">
+            {VALID_RANGES.map((d) => (
+              <Link
+                key={d}
+                href={rangeHref(d)}
+                className={cn(
+                  "rounded-md px-3 py-1.5 text-xs font-medium transition-all duration-150",
+                  days === d ? "bg-zinc-900 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-900"
+                )}
+              >
+                {d}d
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -157,6 +179,18 @@ export default async function UsagePage({
           </CardContent>
         </Card>
       </div>
+
+      {/* Spend chart */}
+      {records.length > 0 && (
+        <Card className="mb-6 rounded-xl border-zinc-100 bg-white shadow-none">
+          <CardHeader className="px-5 pb-2 pt-5">
+            <p className="text-sm font-medium text-zinc-900">Spend — last {days} days</p>
+          </CardHeader>
+          <CardContent className="px-5 pb-5">
+            <SpendChart data={chartData} />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Table */}
       {records.length === 0 ? (
