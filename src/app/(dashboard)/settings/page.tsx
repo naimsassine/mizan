@@ -3,11 +3,13 @@ import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { BackfillMonthsForm } from "@/components/settings/backfill-months-form"
+import { NotificationToggle } from "@/components/settings/notification-toggle"
 
 export default async function SettingsPage() {
   const { userId, orgId } = await auth()
 
   let backfillMonths = 3
+  let notificationEmail = true
 
   if (orgId) {
     const orgSettings = await prisma.orgSettings.findUnique({ where: { clerkOrgId: orgId } })
@@ -15,6 +17,7 @@ export default async function SettingsPage() {
   } else if (userId) {
     const userSettings = await prisma.userSettings.findUnique({ where: { clerkUserId: userId } })
     backfillMonths = userSettings?.backfillMonths ?? 3
+    notificationEmail = userSettings?.notificationEmail ?? true
   }
 
   return (
@@ -41,6 +44,21 @@ export default async function SettingsPage() {
             />
           </CardContent>
         </Card>
+
+        {!orgId && userId && (
+          <Card className="rounded-xl border-zinc-100 shadow-none">
+            <CardHeader className="px-5 pb-2 pt-5">
+              <p className="text-sm font-medium text-zinc-900">Notifications</p>
+              <p className="text-xs text-zinc-500">
+                Choose how you want to be notified when budget alerts fire.
+              </p>
+            </CardHeader>
+            <Separator className="bg-zinc-100" />
+            <CardContent className="px-5 py-4">
+              <NotificationToggle defaultEnabled={notificationEmail} ownerId={userId} />
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )

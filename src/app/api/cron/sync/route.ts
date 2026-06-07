@@ -4,6 +4,7 @@ import { syncOpenAIIncremental } from "@/lib/sync/openai"
 import { syncAnthropicIncremental } from "@/lib/sync/anthropic"
 import { syncGeminiIncremental } from "@/lib/sync/gemini"
 import { syncBedrockIncremental } from "@/lib/sync/bedrock"
+import { sendAlertEmail } from "@/lib/send-alert-email"
 import { startOfDay, startOfWeek, startOfMonth } from "date-fns"
 
 // Called daily by Vercel cron — syncs all active connections then checks budget alerts
@@ -72,6 +73,19 @@ async function checkBudgetAlerts(ownerId: string) {
       await prisma.alert.create({
         data: { budgetRuleId: rule.id, spendUsd },
       })
+      try {
+        await sendAlertEmail({
+          ownerId,
+          ownerType: rule.ownerType,
+          spendUsd,
+          limitUsd: Number(rule.limitUsd),
+          period: rule.period,
+          provider: rule.provider,
+          alertAtPct: rule.alertAtPct,
+        })
+      } catch {
+        // Email failures don't break the cron
+      }
     }
   }
 }
