@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Geist } from "next/font/google"
+import { Geist, Geist_Mono } from "next/font/google"
 import { ClerkProvider } from "@clerk/nextjs"
 import { shadcn } from "@clerk/ui/themes"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -7,7 +7,12 @@ import "./globals.css"
 
 const geist = Geist({
   subsets: ["latin"],
-  variable: "--font-geist",
+  variable: "--font-sans",
+})
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
 })
 
 export const metadata: Metadata = {
@@ -18,8 +23,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <ClerkProvider appearance={{ theme: shadcn }}>
-      <html lang="en" className={`${geist.variable} h-full`}>
-        <body className="h-full bg-white font-sans antialiased">
+      <html lang="en" className={`${geist.variable} ${geistMono.variable} h-full`}>
+        <body className="h-full font-sans antialiased">
           <TooltipProvider>{children}</TooltipProvider>
         </body>
       </html>

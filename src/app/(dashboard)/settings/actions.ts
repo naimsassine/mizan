@@ -30,3 +30,16 @@ export async function saveBackfillMonths(
 
   return { error: null }
 }
+
+export async function saveNotificationEmail(ownerId: string, enabled: boolean) {
+  const { userId } = await auth()
+  if (!userId || userId !== ownerId) return { error: "Unauthorized" }
+
+  await prisma.userSettings.upsert({
+    where: { clerkUserId: userId },
+    update: { notificationEmail: enabled },
+    create: { clerkUserId: userId, notificationEmail: enabled },
+  })
+
+  return { error: null }
+}

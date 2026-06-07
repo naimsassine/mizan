@@ -6,18 +6,25 @@ import { after } from "next/server"
 import { subMonths, startOfDay } from "date-fns"
 import { prisma } from "@/lib/prisma"
 import { encrypt } from "@/lib/encrypt"
-import { syncOpenAI } from "@/lib/sync/openai"
+import { syncOpenAI, syncOpenAIIncremental } from "@/lib/sync/openai"
+import { syncAnthropic, syncAnthropicIncremental } from "@/lib/sync/anthropic"
+import { syncGemini, syncGeminiIncremental } from "@/lib/sync/gemini"
+import { syncBedrock, syncBedrockIncremental } from "@/lib/sync/bedrock"
 
-export async function createConnection(provider: string, apiKey: string) {
+// isBedrock=true means credValue is already a JSON string of { accessKeyId, secretAccessKey, region }
+// Otherwise credValue is a plain API key string
+export async function createConnection(provider: string, credValue: string, isBedrock = false) {
   const { userId, orgId } = await auth()
   if (!userId) return { error: "Unauthorized" }
 
   const validProviders = ["openai", "anthropic", "gemini", "bedrock"]
   if (!validProviders.includes(provider)) return { error: "Invalid provider" }
-  if (!apiKey.trim()) return { error: "API key is required" }
+  if (!credValue.trim()) return { error: "Credentials are required" }
 
   const ownerId = orgId ?? userId
   const ownerType = orgId ? "org" : "user"
+
+  const credJson = isBedrock ? credValue : JSON.stringify({ apiKey: credValue })
 
   let connectionId: string
   try {
@@ -26,7 +33,7 @@ export async function createConnection(provider: string, apiKey: string) {
         ownerId,
         ownerType: ownerType as "user" | "org",
         provider: provider as "openai" | "anthropic" | "gemini" | "bedrock",
-        encCredentials: encrypt(JSON.stringify({ apiKey })),
+        encCredentials: encrypt(credJson),
         backfillFrom: startOfDay(subMonths(new Date(), 3)),
         backfillStatus: "pending",
       },
@@ -36,12 +43,34 @@ export async function createConnection(provider: string, apiKey: string) {
     return { error: "Failed to save connection. Please try again." }
   }
 
-  // Trigger sync after the response is sent — non-blocking
-  if (provider === "openai") {
-    after(async () => {
-      await syncOpenAI(connectionId)
-    })
-  }
+  after(async () => {
+    if (provider === "openai") await syncOpenAI(connectionId)
+    else if (provider === "anthropic") await syncAnthropic(connectionId)
+    else if (provider === "gemini") await syncGemini(connectionId)
+    else if (provider === "bedrock") await syncBedrock(connectionId)
+  })
+
+  revalidatePath("/connections")
+  revalidatePath("/overview")
+  return { error: null }
+}
+
+export async function triggerSync(connectionId: string) {
+  const { userId, orgId } = await auth()
+  if (!userId) return { error: "Unauthorized" }
+
+  const ownerId = orgId ?? userId
+  const connection = await prisma.providerConnection.findFirst({
+    where: { id: connectionId, ownerId },
+  })
+  if (!connection) return { error: "Not found" }
+
+  after(async () => {
+    if (connection.provider === "openai") await syncOpenAIIncremental(connectionId)
+    else if (connection.provider === "anthropic") await syncAnthropicIncremental(connectionId)
+    else if (connection.provider === "gemini") await syncGeminiIncremental(connectionId)
+    else if (connection.provider === "bedrock") await syncBedrockIncremental(connectionId)
+  })
 
   revalidatePath("/connections")
   revalidatePath("/overview")
@@ -53,10 +82,7 @@ export async function deleteConnection(id: string) {
   if (!userId) return { error: "Unauthorized" }
 
   const ownerId = orgId ?? userId
-
-  await prisma.providerConnection.deleteMany({
-    where: { id, ownerId },
-  })
+  await prisma.providerConnection.deleteMany({ where: { id, ownerId } })
 
   revalidatePath("/connections")
   revalidatePath("/overview")

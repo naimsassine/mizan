@@ -2,15 +2,24 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { AddConnectionDialog } from "@/components/connections/add-connection-dialog"
 import { DeleteConnectionButton } from "@/components/connections/delete-connection-button"
+import { SyncButton } from "@/components/connections/sync-button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatDistanceToNow } from "date-fns"
+import { cn } from "@/lib/utils"
 
 const providerLabel: Record<string, string> = {
   openai: "OpenAI",
   anthropic: "Anthropic",
   gemini: "Google Gemini",
   bedrock: "AWS Bedrock",
+}
+
+const providerAccent: Record<string, string> = {
+  openai: "border-l-emerald-400",
+  anthropic: "border-l-orange-400",
+  gemini: "border-l-blue-400",
+  bedrock: "border-l-yellow-400",
 }
 
 const statusVariant: Record<string, string> = {
@@ -49,7 +58,7 @@ export default async function ConnectionsPage() {
       </div>
 
       {connections.length === 0 ? (
-        <Card className="rounded-xl border-zinc-100 shadow-none">
+        <Card className="rounded-xl border-zinc-100 bg-white shadow-none">
           <CardContent className="py-16 text-center">
             <p className="text-sm text-zinc-500">
               No connections yet.{" "}
@@ -60,7 +69,13 @@ export default async function ConnectionsPage() {
       ) : (
         <div className="space-y-2">
           {connections.map((conn: typeof connections[number]) => (
-            <Card key={conn.id} className="rounded-xl border-zinc-100 shadow-none">
+            <Card
+              key={conn.id}
+              className={cn(
+                "rounded-xl border-zinc-100 bg-white shadow-none border-l-2 transition-shadow duration-200 hover:shadow-sm",
+                providerAccent[conn.provider] ?? "border-l-zinc-200"
+              )}
+            >
               <CardContent className="flex items-center justify-between px-5 py-4">
                 <div className="flex items-center gap-4">
                   <div>
@@ -76,14 +91,15 @@ export default async function ConnectionsPage() {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <Badge
                     variant="outline"
                     className={`text-[10px] px-2 py-0 h-5 ${statusVariant[conn.status] ?? ""}`}
                   >
                     {conn.status}
                   </Badge>
-                  <DeleteConnectionButton id={conn.id} />
+                  <SyncButton id={conn.id} />
+                  <DeleteConnectionButton id={conn.id} provider={conn.provider} />
                 </div>
               </CardContent>
             </Card>
