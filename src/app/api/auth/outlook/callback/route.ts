@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { NextRequest, NextResponse } from "next/server"
 import { after } from "next/server"
-import { exchangeCode, getGmailProfile } from "@/lib/gmail"
+import { exchangeCode, getOutlookProfile } from "@/lib/outlook"
 import { encrypt } from "@/lib/encrypt"
 import { prisma } from "@/lib/prisma"
 import { scanEmails } from "@/lib/scan-emails"
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const tokens = await exchangeCode(code, origin)
-    const profile = await getGmailProfile(tokens.accessToken)
+    const profile = await getOutlookProfile(tokens.accessToken)
 
     const ownerId = orgId ?? userId
     const ownerType: "user" | "org" = orgId ? "org" : "user"
@@ -45,11 +45,12 @@ export async function GET(req: NextRequest) {
       update: {
         encCredentials: encrypt(JSON.stringify(tokens)),
         status: "active",
+        emailProvider: "outlook",
       },
       create: {
         ownerId,
         ownerType,
-        emailProvider: "gmail",
+        emailProvider: "outlook",
         emailAddress: profile.emailAddress,
         encCredentials: encrypt(JSON.stringify(tokens)),
       },
@@ -61,7 +62,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.redirect(new URL("/receipts", req.url))
   } catch (err) {
-    console.error("[gmail/callback]", err)
+    console.error("[outlook/callback]", err)
     return NextResponse.redirect(new URL("/receipts?error=connection_failed", req.url))
   }
 }

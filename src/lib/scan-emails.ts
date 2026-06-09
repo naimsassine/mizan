@@ -1,10 +1,10 @@
 import { format, subMonths } from "date-fns"
 import { prisma } from "@/lib/prisma"
-import { getValidAccessToken, searchMessages, getMessage } from "@/lib/gmail"
 import { parseEmailAsReceipt } from "@/lib/parse-receipt"
+import * as gmail from "@/lib/gmail"
+import * as outlook from "@/lib/outlook"
 
-// Emails from these domains that look like receipts/invoices
-const PROVIDER_DOMAINS = [
+const GMAIL_DOMAINS = [
   "openai.com",
   "anthropic.com",
   "mistral.ai",
@@ -20,11 +20,8 @@ const PROVIDER_DOMAINS = [
   "fireworks.ai",
 ].map((d) => `from:${d}`)
 
-// AWS and Google need extra subject filtering to avoid noise
-const BROAD_DOMAINS_QUERY =
-  "(from:amazon-web-services.com OR from:cloud.google.com) (invoice OR receipt OR billing)"
-
-const QUERY = `(${PROVIDER_DOMAINS.join(" OR ")}) OR ${BROAD_DOMAINS_QUERY}`
+const GMAIL_BROAD = "(from:amazon-web-services.com OR from:cloud.google.com) (invoice OR receipt OR billing)"
+const GMAIL_QUERY = `(${GMAIL_DOMAINS.join(" OR ")}) OR ${GMAIL_BROAD}`
 
 export async function scanEmails(
   emailConnectionId: string,
@@ -36,21 +33,28 @@ export async function scanEmails(
 
   let accessToken: string
   try {
-    accessToken = await getValidAccessToken(emailConnectionId)
+    accessToken =
+      connection.emailProvider === "outlook"
+        ? await outlook.getValidAccessToken(emailConnectionId)
+        : await gmail.getValidAccessToken(emailConnectionId)
   } catch {
     await prisma.emailConnection.update({
       where: { id: emailConnectionId },
       data: { status: "error" },
     })
-    throw new Error("Failed to refresh Gmail token")
+    throw new Error("Failed to refresh token")
   }
 
-  const since = format(subMonths(new Date(), 6), "yyyy/MM/dd")
-  const query = `(${QUERY}) after:${since}`
+  // Fetch message IDs from the appropriate provider
+  let messageIds: string[]
+  if (connection.emailProvider === "outlook") {
+    messageIds = await outlook.searchMessages(accessToken, 100)
+  } else {
+    const since = format(subMonths(new Date(), 6), "yyyy/MM/dd")
+    messageIds = await gmail.searchMessages(accessToken, `(${GMAIL_QUERY}) after:${since}`, 100)
+  }
 
-  const messageIds = await searchMessages(accessToken, query, 100)
-
-  // Filter out already-processed IDs
+  // Skip already-processed IDs
   const existing = await prisma.receipt.findMany({
     where: { emailConnectionId, externalId: { not: null } },
     select: { externalId: true },
@@ -61,9 +65,12 @@ export async function scanEmails(
   let saved = 0
   for (const messageId of newIds) {
     try {
-      const msg = await getMessage(accessToken, messageId)
-      const parsed = await parseEmailAsReceipt(msg.subject, msg.from, msg.body)
+      const msg =
+        connection.emailProvider === "outlook"
+          ? await outlook.getMessage(accessToken, messageId)
+          : await gmail.getMessage(accessToken, messageId)
 
+      const parsed = await parseEmailAsReceipt(msg.subject, msg.from, msg.body)
       if (!parsed.isAiBillingEmail || parsed.amountUsd === null) continue
 
       await prisma.receipt.create({

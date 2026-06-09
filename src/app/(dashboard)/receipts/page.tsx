@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Mail, Receipt } from "lucide-react"
 import { formatDistanceToNow, format } from "date-fns"
-import { ConnectGmailButton } from "@/components/receipts/connect-gmail-button"
+import { ConnectEmailButton } from "@/components/receipts/connect-email-button"
 import { ScanEmailButton } from "@/components/receipts/scan-email-button"
 import { DisconnectEmailButton } from "@/components/receipts/disconnect-email-button"
 
@@ -49,7 +49,7 @@ export default async function ReceiptsPage({
             AI billing receipts found automatically in your email.
           </p>
         </div>
-        <ConnectGmailButton />
+        <ConnectEmailButton />
       </div>
 
       {error && (
@@ -74,7 +74,10 @@ export default async function ReceiptsPage({
                 <div className="flex items-center gap-3">
                   <Mail className="h-4 w-4 text-zinc-400" strokeWidth={1.5} />
                   <div>
-                    <p className="text-sm font-medium text-zinc-900">{conn.emailAddress}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-zinc-900">{conn.emailAddress}</p>
+                      <span className="text-[10px] text-zinc-400 capitalize">{conn.emailProvider}</span>
+                    </div>
                     <p className="mt-0.5 text-xs text-zinc-400">
                       {conn.lastScannedAt
                         ? `Scanned ${formatDistanceToNow(conn.lastScannedAt, { addSuffix: true })}`

@@ -44,6 +44,11 @@ enum BudgetPeriod {
   monthly
 }
 
+enum EmailProvider {
+  gmail
+  outlook
+}
+
 model Profile {
   clerkUserId String   @id @map("clerk_user_id")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -101,6 +106,7 @@ model EmailConnection {
   id             String           @id @default(uuid())
   ownerId        String           @map("owner_id")
   ownerType      OwnerType        @map("owner_type")
+  emailProvider  EmailProvider    @default(gmail) @map("email_provider")
   emailAddress   String           @map("email_address")
   encCredentials String           @map("enc_credentials")
   status         ConnectionStatus @default(active)
