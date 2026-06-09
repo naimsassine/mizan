@@ -93,6 +93,16 @@ export default async function NotificationsPage() {
     }),
   ])
 
+  // Serialize Decimal fields for client components
+  const serializedAlerts = alerts.map((a) => ({
+    ...a,
+    spendUsd: Number(a.spendUsd),
+    budgetRule: {
+      ...a.budgetRule,
+      limitUsd: Number(a.budgetRule.limitUsd),
+    },
+  }))
+
   const unackCount = alerts.filter((a) => !a.acknowledgedAt).length
 
   const digestProviders = userSettings?.weeklyDigestProviders
@@ -241,7 +251,7 @@ export default async function NotificationsPage() {
               </div>
             </CardContent>
           ) : (
-            <AlertHistoryList alerts={alerts} providerColors={providerColors} providerLabel={providerLabel} />
+            <AlertHistoryList alerts={serializedAlerts} providerColors={providerColors} providerLabel={providerLabel} />
           )}
         </Card>
       </div>
