@@ -13,6 +13,7 @@ import {
   Receipt,
   Menu,
   X,
+  ArrowLeftRight,
 } from "lucide-react"
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs"
 import { cn } from "@/lib/utils"
@@ -20,6 +21,7 @@ import { cn } from "@/lib/utils"
 const navItems = [
   { href: "/overview", icon: LayoutDashboard, label: "Overview" },
   { href: "/usage", icon: BarChart2, label: "Usage" },
+  { href: "/compare", icon: ArrowLeftRight, label: "Compare" },
   { href: "/connections", icon: Plug, label: "Connections" },
   { href: "/receipts", icon: Receipt, label: "Receipts" },
   { href: "/notifications", icon: Bell, label: "Notifications" },

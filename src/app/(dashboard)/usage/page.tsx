@@ -7,6 +7,7 @@ import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { SpendChart } from "@/components/dashboard/spend-chart"
 import { UsageTable } from "@/components/usage/usage-table"
+import { TokenEfficiencyTable } from "@/components/usage/token-efficiency-table"
 import { Download } from "lucide-react"
 
 const providerColors: Record<string, string> = {
@@ -117,6 +118,21 @@ export default async function UsagePage({
   const chartData = Array.from(dailyMap.entries())
     .map(([date, { api, subscription }]) => ({ date, api, subscription }))
     .sort((a, b) => a.date.localeCompare(b.date))
+
+  // Aggregate by model+provider for token efficiency view
+  const efficiencyMap = new Map<string, { provider: string; inputTokens: number; outputTokens: number; costUsd: number }>()
+  for (const r of records) {
+    const key = `${r.provider}::${r.model}`
+    const e = efficiencyMap.get(key) ?? { provider: r.provider, inputTokens: 0, outputTokens: 0, costUsd: 0 }
+    e.inputTokens += Number(r._sum?.inputTokens ?? 0)
+    e.outputTokens += Number(r._sum?.outputTokens ?? 0)
+    e.costUsd += Number(r._sum?.costUsd ?? 0)
+    efficiencyMap.set(key, e)
+  }
+  const efficiencyRows = Array.from(efficiencyMap.entries()).map(([key, e]) => ({
+    model: key.split("::")[1],
+    ...e,
+  }))
 
   function rangeHref(d: number) {
     const params = new URLSearchParams()
@@ -272,6 +288,19 @@ export default async function UsagePage({
             totalOutputTokens={records.reduce((s, r) => s + Number(r._sum.outputTokens ?? 0), 0)}
             providerColors={providerColors}
           />
+        </Card>
+      )}
+
+      {/* Token efficiency */}
+      {efficiencyRows.length > 0 && (
+        <Card className="mt-6 overflow-hidden rounded-xl border-zinc-100 bg-white shadow-none">
+          <CardHeader className="px-5 pb-3 pt-5">
+            <p className="text-sm font-medium text-zinc-900">Token efficiency</p>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Output/input token ratio per model — a low ratio may indicate overly verbose prompts.
+            </p>
+          </CardHeader>
+          <TokenEfficiencyTable rows={efficiencyRows} />
         </Card>
       )}
 

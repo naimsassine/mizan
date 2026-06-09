@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server"
-import { subDays, startOfMonth, endOfMonth } from "date-fns"
+import { subDays, startOfMonth, endOfMonth, startOfDay, format } from "date-fns"
 import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -11,6 +11,7 @@ import { DeleteRuleButton } from "@/components/notifications/delete-rule-button"
 import { AcknowledgeButton } from "@/components/notifications/acknowledge-button"
 import { DigestSettingsForm } from "@/components/notifications/digest-settings-form"
 import { AlertHistoryList } from "@/components/notifications/alert-history-list"
+import { AnomalyCard, type SpendAnomaly } from "@/components/notifications/anomaly-card"
 
 const providerLabel: Record<string, string> = {
   openai: "OpenAI",
@@ -54,8 +55,9 @@ export default async function NotificationsPage() {
   const monthEnd = endOfMonth(now)
   const weekAgo = subDays(now, 7)
   const dayAgo = subDays(now, 1)
+  const fourteenDaysAgo = subDays(startOfDay(now), 13)
 
-  const [rules, alerts, userSettings, monthlySpend, weeklySpend, dailySpend] = await Promise.all([
+  const [rules, alerts, userSettings, monthlySpend, weeklySpend, dailySpend, anomalyRecords] = await Promise.all([
     prisma.budgetRule.findMany({
       where: { ownerId },
       orderBy: { createdAt: "desc" },
@@ -83,6 +85,12 @@ export default async function NotificationsPage() {
       where: { ownerId, date: { gte: dayAgo } },
       _sum: { costUsd: true },
     }),
+    prisma.usageRecord.groupBy({
+      by: ["date"],
+      where: { ownerId, date: { gte: fourteenDaysAgo } },
+      _sum: { costUsd: true },
+      orderBy: [{ date: "asc" }],
+    }),
   ])
 
   const unackCount = alerts.filter((a) => !a.acknowledgedAt).length
@@ -96,6 +104,31 @@ export default async function NotificationsPage() {
     weekly: Number(weeklySpend._sum.costUsd ?? 0),
     daily: Number(dailySpend._sum.costUsd ?? 0),
   }
+
+  // Anomaly detection: flag days where total spend ≥ 2× previous day and ≥ $0.10
+  const MIN_SPEND = 0.10
+  const dailySeries = anomalyRecords.map((r) => ({
+    date: r.date,
+    key: format(r.date, "yyyy-MM-dd"),
+    cost: Number(r._sum.costUsd ?? 0),
+  }))
+  const anomalies: SpendAnomaly[] = []
+  for (let i = 1; i < dailySeries.length; i++) {
+    const prev = dailySeries[i - 1]
+    const curr = dailySeries[i]
+    if (curr.cost >= MIN_SPEND && prev.cost > 0 && curr.cost >= prev.cost * 2) {
+      anomalies.push({
+        date: curr.date,
+        provider: null,
+        prevCost: prev.cost,
+        currCost: curr.cost,
+        multiplier: curr.cost / prev.cost,
+      })
+    }
+  }
+  // Keep only the 5 most severe
+  anomalies.sort((a, b) => b.multiplier - a.multiplier)
+  const topAnomalies = anomalies.slice(0, 5)
 
   return (
     <div className="mx-auto max-w-3xl px-4 md:px-8 py-6 md:py-8">
@@ -129,6 +162,9 @@ export default async function NotificationsPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Anomaly detection */}
+        {topAnomalies.length > 0 && <AnomalyCard anomalies={topAnomalies} />}
 
         {/* Cost alert rules */}
         <Card className="rounded-xl border-zinc-100 bg-white shadow-none">
