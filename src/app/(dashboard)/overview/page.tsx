@@ -1,5 +1,13 @@
 import { auth, currentUser } from "@clerk/nextjs/server"
-import { subDays, format, startOfMonth, endOfMonth, subMonths } from "date-fns"
+import {
+  subDays,
+  format,
+  startOfMonth,
+  endOfMonth,
+  subMonths,
+  getDaysInMonth,
+  getDate,
+} from "date-fns"
 import { prisma } from "@/lib/prisma"
 import { StatCard } from "@/components/dashboard/stat-card"
 import { SpendChart } from "@/components/dashboard/spend-chart"
@@ -9,6 +17,14 @@ import { Plug } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 
+function receiptEffectiveDate(r: {
+  billingPeriodEnd: Date | null
+  parsedAt: Date | null
+  createdAt: Date
+}): Date {
+  return r.billingPeriodEnd ?? r.parsedAt ?? r.createdAt
+}
+
 async function getDashboardData(ownerId: string) {
   const now = new Date()
   const thirtyDaysAgo = subDays(now, 30)
@@ -17,41 +33,82 @@ async function getDashboardData(ownerId: string) {
   const lastMonthStart = startOfMonth(subMonths(now, 1))
   const lastMonthEnd = endOfMonth(subMonths(now, 1))
 
-  const [monthlyRecords, last30Days, lastMonthRecords, connections] = await Promise.all([
-    prisma.usageRecord.findMany({
-      where: { ownerId, date: { gte: monthStart, lte: monthEnd } },
-      select: { costUsd: true, inputTokens: true, outputTokens: true },
-    }),
-    prisma.usageRecord.findMany({
-      where: { ownerId, date: { gte: thirtyDaysAgo } },
-      select: { date: true, costUsd: true },
-      orderBy: { date: "asc" },
-    }),
-    prisma.usageRecord.findMany({
-      where: { ownerId, date: { gte: lastMonthStart, lte: lastMonthEnd } },
-      select: { costUsd: true },
-    }),
-    prisma.providerConnection.count({ where: { ownerId } }),
-  ])
+  const [monthlyRecords, last30Days, lastMonthRecords, connections, allReceipts] =
+    await Promise.all([
+      prisma.usageRecord.findMany({
+        where: { ownerId, date: { gte: monthStart, lte: monthEnd } },
+        select: { costUsd: true, inputTokens: true, outputTokens: true },
+      }),
+      prisma.usageRecord.findMany({
+        where: { ownerId, date: { gte: thirtyDaysAgo } },
+        select: { date: true, costUsd: true },
+        orderBy: { date: "asc" },
+      }),
+      prisma.usageRecord.findMany({
+        where: { ownerId, date: { gte: lastMonthStart, lte: lastMonthEnd } },
+        select: { costUsd: true },
+      }),
+      prisma.providerConnection.count({ where: { ownerId } }),
+      // Receipts for the last 30 days + current month — use effective date filtering in JS
+      prisma.receipt.findMany({
+        where: { ownerId },
+        select: { amountUsd: true, billingPeriodEnd: true, parsedAt: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+        take: 500,
+      }),
+    ])
 
-  const mtdSpend = monthlyRecords.reduce((s: number, r) => s + Number(r.costUsd), 0)
-  const lastMonthSpend = lastMonthRecords.reduce((s: number, r) => s + Number(r.costUsd), 0)
+  // Split receipts by time window
+  const mtdReceipts = allReceipts.filter((r) => {
+    const d = receiptEffectiveDate(r)
+    return d >= monthStart && d <= monthEnd
+  })
+  const last30Receipts = allReceipts.filter((r) => receiptEffectiveDate(r) >= thirtyDaysAgo)
+  const lastMonthReceipts = allReceipts.filter((r) => {
+    const d = receiptEffectiveDate(r)
+    return d >= lastMonthStart && d <= lastMonthEnd
+  })
+
+  const apiMtd = monthlyRecords.reduce((s: number, r) => s + Number(r.costUsd), 0)
+  const receiptMtd = mtdReceipts.reduce((s: number, r) => s + Number(r.amountUsd), 0)
+  const mtdSpend = apiMtd + receiptMtd
+
+  const lastMonthApiSpend = lastMonthRecords.reduce((s: number, r) => s + Number(r.costUsd), 0)
+  const lastMonthReceiptSpend = lastMonthReceipts.reduce(
+    (s: number, r) => s + Number(r.amountUsd),
+    0,
+  )
+  const lastMonthSpend = lastMonthApiSpend + lastMonthReceiptSpend
+
   const spendDelta =
     lastMonthSpend > 0 ? ((mtdSpend - lastMonthSpend) / lastMonthSpend) * 100 : null
+
   const totalTokens = monthlyRecords.reduce(
     (s: number, r) => s + Number(r.inputTokens) + Number(r.outputTokens),
-    0
+    0,
   )
 
-  // Daily aggregation for the chart
+  // Forecast
+  const daysElapsed = getDate(now)
+  const daysInMonth = getDaysInMonth(now)
+  const dailyAvg = daysElapsed > 0 ? mtdSpend / daysElapsed : 0
+  const forecastMonthEnd = dailyAvg * daysInMonth
+
+  // Daily aggregation for chart — merge API usage + receipts
   const dailyMap = new Map<string, number>()
   for (const r of last30Days) {
     const key = format(r.date, "yyyy-MM-dd")
     dailyMap.set(key, (dailyMap.get(key) ?? 0) + Number(r.costUsd))
   }
-  const chartData = Array.from(dailyMap.entries()).map(([date, cost]) => ({ date, cost }))
+  for (const r of last30Receipts) {
+    const key = format(receiptEffectiveDate(r), "yyyy-MM-dd")
+    dailyMap.set(key, (dailyMap.get(key) ?? 0) + Number(r.amountUsd))
+  }
+  const chartData = Array.from(dailyMap.entries())
+    .map(([date, cost]) => ({ date, cost }))
+    .sort((a, b) => a.date.localeCompare(b.date))
 
-  // Per-model breakdown
+  // Per-model breakdown (API records only — receipts have no model granularity)
   const modelRecords = await prisma.usageRecord.groupBy({
     by: ["model", "provider"],
     where: { ownerId, date: { gte: monthStart, lte: monthEnd } },
@@ -63,12 +120,24 @@ async function getDashboardData(ownerId: string) {
     model: r.model,
     provider: r.provider as string,
     costUsd: Number(r._sum.costUsd ?? 0),
-    totalTokens:
-      Number(r._sum.inputTokens ?? 0) + Number(r._sum.outputTokens ?? 0),
-    pct: mtdSpend > 0 ? (Number(r._sum.costUsd ?? 0) / mtdSpend) * 100 : 0,
+    totalTokens: Number(r._sum.inputTokens ?? 0) + Number(r._sum.outputTokens ?? 0),
+    pct: apiMtd > 0 ? (Number(r._sum.costUsd ?? 0) / apiMtd) * 100 : 0,
   }))
 
-  return { mtdSpend, lastMonthSpend, spendDelta, totalTokens, chartData, modelRows, connections }
+  return {
+    mtdSpend,
+    lastMonthSpend,
+    spendDelta,
+    totalTokens,
+    chartData,
+    modelRows,
+    connections,
+    forecastMonthEnd,
+    dailyAvg,
+    daysInMonth,
+    daysElapsed,
+    receiptMtd,
+  }
 }
 
 function formatTokens(n: number): string {
@@ -82,8 +151,19 @@ export default async function OverviewPage() {
   const user = await currentUser()
   const ownerId = orgId ?? userId!
 
-  const { mtdSpend, spendDelta, totalTokens, chartData, modelRows, connections } =
-    await getDashboardData(ownerId)
+  const {
+    mtdSpend,
+    spendDelta,
+    totalTokens,
+    chartData,
+    modelRows,
+    connections,
+    forecastMonthEnd,
+    dailyAvg,
+    daysInMonth,
+    daysElapsed,
+    receiptMtd,
+  } = await getDashboardData(ownerId)
 
   const firstName = user?.firstName ?? "there"
   const hour = new Date().getHours()
@@ -149,11 +229,19 @@ export default async function OverviewPage() {
               sub="providers connected"
             />
             <StatCard
-              label="Daily average"
-              value={`$${(mtdSpend / new Date().getDate()).toFixed(2)}`}
-              sub="this month"
+              label="Forecast"
+              value={`$${forecastMonthEnd.toFixed(2)}`}
+              sub={`$${dailyAvg.toFixed(2)}/day · ${daysInMonth - daysElapsed}d left`}
             />
           </div>
+
+          {receiptMtd > 0 && (
+            <p className="text-xs text-zinc-400">
+              Includes{" "}
+              <span className="font-medium text-zinc-600">${receiptMtd.toFixed(2)}</span> from
+              email receipts this month.
+            </p>
+          )}
 
           {/* Spend chart */}
           <Card className="rounded-xl border-zinc-100 bg-white shadow-none">

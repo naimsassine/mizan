@@ -99,7 +99,7 @@ export async function scanEmails(
 
   await prisma.emailConnection.update({
     where: { id: emailConnectionId },
-    data: { lastScannedAt: new Date(), status: "active" },
+    data: { lastScannedAt: new Date(), status: "active", lastScanFound: saved },
   })
 
   return { scanned: newIds.length, saved }

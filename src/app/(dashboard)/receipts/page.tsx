@@ -79,9 +79,19 @@ export default async function ReceiptsPage({
                       <span className="text-[10px] text-zinc-400 capitalize">{conn.emailProvider}</span>
                     </div>
                     <p className="mt-0.5 text-xs text-zinc-400">
-                      {conn.lastScannedAt
-                        ? `Scanned ${formatDistanceToNow(conn.lastScannedAt, { addSuffix: true })}`
-                        : "Scan in progress…"}
+                      {conn.lastScannedAt ? (
+                        <>
+                          Scanned {formatDistanceToNow(conn.lastScannedAt, { addSuffix: true })}
+                          {conn.lastScanFound !== null && (
+                            <> · {conn.lastScanFound === 0
+                              ? "no new receipts"
+                              : `${conn.lastScanFound} receipt${conn.lastScanFound !== 1 ? "s" : ""} found`}
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        "Scan in progress…"
+                      )}
                     </p>
                   </div>
                 </div>

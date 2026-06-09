@@ -4,6 +4,7 @@ import { syncOpenAIIncremental } from "@/lib/sync/openai"
 import { syncAnthropicIncremental } from "@/lib/sync/anthropic"
 import { syncGeminiIncremental } from "@/lib/sync/gemini"
 import { syncBedrockIncremental } from "@/lib/sync/bedrock"
+import { scanEmails } from "@/lib/scan-emails"
 import { sendAlertEmail } from "@/lib/send-alert-email"
 import { startOfDay, startOfWeek, startOfMonth } from "date-fns"
 
@@ -14,10 +15,16 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const connections = await prisma.providerConnection.findMany({
-    where: { status: "active" },
-    select: { id: true, provider: true, ownerId: true },
-  })
+  const [connections, emailConnections] = await Promise.all([
+    prisma.providerConnection.findMany({
+      where: { status: "active" },
+      select: { id: true, provider: true, ownerId: true },
+    }),
+    prisma.emailConnection.findMany({
+      where: { status: "active" },
+      select: { id: true },
+    }),
+  ])
 
   await Promise.allSettled(
     connections.map((c) => {
@@ -28,11 +35,14 @@ export async function GET(req: Request) {
     })
   )
 
+  // Re-scan email inboxes for new billing emails
+  await Promise.allSettled(emailConnections.map((c) => scanEmails(c.id)))
+
   // Check budget alerts for all owners that have rules
   const ownerIds = [...new Set(connections.map((c) => c.ownerId))]
   await Promise.allSettled(ownerIds.map(checkBudgetAlerts))
 
-  return NextResponse.json({ synced: connections.length })
+  return NextResponse.json({ synced: connections.length, emailsScanned: emailConnections.length })
 }
 
 async function checkBudgetAlerts(ownerId: string) {
