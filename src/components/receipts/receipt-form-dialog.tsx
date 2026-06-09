@@ -1,0 +1,248 @@
+"use client"
+
+import { useState, useTransition } from "react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Plus, Loader2, Trash2 } from "lucide-react"
+import { createReceipt, updateReceipt, deleteReceipt } from "@/app/(dashboard)/receipts/actions"
+import { format } from "date-fns"
+
+const PROVIDERS = [
+  { value: "openai", label: "OpenAI" },
+  { value: "anthropic", label: "Anthropic" },
+  { value: "google", label: "Google" },
+  { value: "aws", label: "AWS" },
+  { value: "mistral", label: "Mistral" },
+  { value: "cohere", label: "Cohere" },
+  { value: "perplexity", label: "Perplexity" },
+  { value: "cursor", label: "Cursor" },
+  { value: "together", label: "Together AI" },
+  { value: "replicate", label: "Replicate" },
+  { value: "other", label: "Other" },
+]
+
+interface ReceiptData {
+  id: string
+  provider: string | null
+  amountUsd: number | string
+  billingPeriodStart: Date | null
+  billingPeriodEnd: Date | null
+  invoiceId: string | null
+}
+
+interface Props {
+  receipt?: ReceiptData
+  children?: React.ReactNode
+}
+
+export function ReceiptFormDialog({ receipt, children }: Props) {
+  const isEdit = !!receipt
+  const [open, setOpen] = useState(false)
+  const [provider, setProvider] = useState(receipt?.provider ?? "")
+  const [amount, setAmount] = useState(
+    receipt ? Number(receipt.amountUsd).toFixed(2) : "",
+  )
+  const [periodStart, setPeriodStart] = useState(
+    receipt?.billingPeriodStart ? format(receipt.billingPeriodStart, "yyyy-MM-dd") : "",
+  )
+  const [periodEnd, setPeriodEnd] = useState(
+    receipt?.billingPeriodEnd ? format(receipt.billingPeriodEnd, "yyyy-MM-dd") : "",
+  )
+  const [invoiceId, setInvoiceId] = useState(receipt?.invoiceId ?? "")
+  const [error, setError] = useState("")
+  const [isPending, startTransition] = useTransition()
+  const [isDeleting, startDeleteTransition] = useTransition()
+
+  function reset() {
+    if (!isEdit) {
+      setProvider("")
+      setAmount("")
+      setPeriodStart("")
+      setPeriodEnd("")
+      setInvoiceId("")
+    }
+    setError("")
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError("")
+    const amountNum = parseFloat(amount)
+    if (isNaN(amountNum) || amountNum <= 0) {
+      setError("Enter a valid amount greater than 0")
+      return
+    }
+
+    const data = {
+      provider: provider || null,
+      amountUsd: amountNum,
+      billingPeriodStart: periodStart || null,
+      billingPeriodEnd: periodEnd || null,
+      invoiceId: invoiceId.trim() || null,
+    }
+
+    startTransition(async () => {
+      const result = isEdit
+        ? await updateReceipt(receipt!.id, data)
+        : await createReceipt(data)
+
+      if (result?.error) {
+        setError(result.error)
+      } else {
+        setOpen(false)
+        reset()
+      }
+    })
+  }
+
+  function handleDelete() {
+    startDeleteTransition(async () => {
+      await deleteReceipt(receipt!.id)
+      setOpen(false)
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset() }}>
+      <DialogTrigger asChild>
+        {children ?? (
+          <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs">
+            <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
+            Add receipt
+          </Button>
+        )}
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold text-zinc-900">
+            {isEdit ? "Edit receipt" : "Add receipt"}
+          </DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="mt-2 space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-zinc-600">Provider</Label>
+            <Select value={provider} onValueChange={(v) => setProvider(v)}>
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="Select provider" />
+              </SelectTrigger>
+              <SelectContent>
+                {PROVIDERS.map((p) => (
+                  <SelectItem key={p.value} value={p.value} className="text-sm">
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-zinc-600">Amount (USD) *</Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-zinc-400">
+                $
+              </span>
+              <Input
+                type="number"
+                step="0.01"
+                min="0.01"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => { setAmount(e.target.value); setError("") }}
+                className="h-9 pl-7 font-mono text-sm"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-zinc-600">Period start</Label>
+              <Input
+                type="date"
+                value={periodStart}
+                onChange={(e) => setPeriodStart(e.target.value)}
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-zinc-600">Period end</Label>
+              <Input
+                type="date"
+                value={periodEnd}
+                onChange={(e) => setPeriodEnd(e.target.value)}
+                className="h-9 text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-zinc-600">Invoice ID</Label>
+            <Input
+              type="text"
+              placeholder="INV-12345"
+              value={invoiceId}
+              onChange={(e) => setInvoiceId(e.target.value)}
+              className="h-9 text-sm"
+            />
+          </div>
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
+
+          <div className="flex items-center justify-between pt-1">
+            {isEdit ? (
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600 transition-colors"
+              >
+                {isDeleting ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3 w-3" />
+                )}
+                Delete
+              </button>
+            ) : (
+              <span />
+            )}
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => { setOpen(false); reset() }}
+                className="h-8 text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={isPending}
+                className="h-8 bg-zinc-900 text-xs text-white hover:bg-zinc-700"
+              >
+                {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : isEdit ? "Save" : "Add"}
+              </Button>
+            </div>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}

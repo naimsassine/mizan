@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { AddConnectionDialog } from "@/components/connections/add-connection-dialog"
 import { DeleteConnectionButton } from "@/components/connections/delete-connection-button"
 import { SyncButton } from "@/components/connections/sync-button"
+import { SetGcpProjectButton } from "@/components/connections/set-gcp-project-button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatDistanceToNow } from "date-fns"
@@ -11,7 +12,7 @@ import { cn } from "@/lib/utils"
 const providerLabel: Record<string, string> = {
   openai: "OpenAI",
   anthropic: "Anthropic",
-  gemini: "Google Gemini",
+  gemini: "Google Gemini / Vertex AI",
   bedrock: "AWS Bedrock",
 }
 
@@ -28,9 +29,14 @@ const statusVariant: Record<string, string> = {
   expired: "bg-zinc-100 text-zinc-500 border-zinc-200",
 }
 
-export default async function ConnectionsPage() {
+export default async function ConnectionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; gcp_conn?: string }>
+}) {
   const { userId, orgId } = await auth()
   const ownerId = orgId ?? userId!
+  const { error, gcp_conn } = await searchParams
 
   const connections = await prisma.providerConnection.findMany({
     where: { ownerId },
@@ -41,6 +47,7 @@ export default async function ConnectionsPage() {
       status: true,
       lastSyncedAt: true,
       backfillStatus: true,
+      gcpProjectId: true,
       createdAt: true,
     },
   })
@@ -57,6 +64,22 @@ export default async function ConnectionsPage() {
         <AddConnectionDialog />
       </div>
 
+      {error && (
+        <div className="mb-6 rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error === "oauth_denied" && "Google access was denied. Please try again."}
+          {error === "connection_failed" && "Failed to connect. Please try again."}
+          {!["oauth_denied", "connection_failed"].includes(error) &&
+            "Something went wrong. Please try again."}
+        </div>
+      )}
+
+      {gcp_conn && (
+        <div className="mb-6 rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Google Cloud connected. You have multiple GCP projects — set the project ID below to
+          start syncing Vertex AI usage.
+        </div>
+      )}
+
       {connections.length === 0 ? (
         <Card className="rounded-xl border-zinc-100 bg-white shadow-none">
           <CardContent className="py-16 text-center">
@@ -68,42 +91,63 @@ export default async function ConnectionsPage() {
         </Card>
       ) : (
         <div className="space-y-2">
-          {connections.map((conn: typeof connections[number]) => (
-            <Card
-              key={conn.id}
-              className={cn(
-                "rounded-xl border-zinc-100 bg-white shadow-none border-l-2 transition-shadow duration-200 hover:shadow-sm",
-                providerAccent[conn.provider] ?? "border-l-zinc-200"
-              )}
-            >
-              <CardContent className="flex items-center justify-between px-5 py-4">
-                <div className="flex items-center gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-zinc-900">
-                      {providerLabel[conn.provider] ?? conn.provider}
-                    </p>
-                    <p className="mt-0.5 text-xs text-zinc-400">
-                      {conn.lastSyncedAt
-                        ? `Synced ${formatDistanceToNow(conn.lastSyncedAt, { addSuffix: true })}`
-                        : conn.backfillStatus === "pending"
-                          ? "Sync pending..."
-                          : "Never synced"}
-                    </p>
+          {connections.map((conn) => {
+            const needsGcpProject =
+              conn.provider === "gemini" && conn.gcpProjectId === "PENDING"
+
+            return (
+              <Card
+                key={conn.id}
+                className={cn(
+                  "rounded-xl border-zinc-100 bg-white shadow-none border-l-2 transition-shadow duration-200 hover:shadow-sm",
+                  providerAccent[conn.provider] ?? "border-l-zinc-200",
+                )}
+              >
+                <CardContent className="flex items-center justify-between px-5 py-4">
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-zinc-900">
+                        {providerLabel[conn.provider] ?? conn.provider}
+                      </p>
+                      <p className="mt-0.5 text-xs text-zinc-400">
+                        {needsGcpProject
+                          ? "Project ID required to start syncing"
+                          : conn.lastSyncedAt
+                            ? `Synced ${formatDistanceToNow(conn.lastSyncedAt, { addSuffix: true })}`
+                            : conn.backfillStatus === "pending"
+                              ? "Sync pending..."
+                              : "Never synced"}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge
-                    variant="outline"
-                    className={`text-[10px] px-2 py-0 h-5 ${statusVariant[conn.status] ?? ""}`}
-                  >
-                    {conn.status}
-                  </Badge>
-                  <SyncButton id={conn.id} />
-                  <DeleteConnectionButton id={conn.id} provider={conn.provider} />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  <div className="flex items-center gap-2">
+                    {needsGcpProject ? (
+                      <>
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-2 py-0 h-5 bg-amber-50 text-amber-700 border-amber-100"
+                        >
+                          setup needed
+                        </Badge>
+                        <SetGcpProjectButton connectionId={conn.id} />
+                      </>
+                    ) : (
+                      <>
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] px-2 py-0 h-5 ${statusVariant[conn.status] ?? ""}`}
+                        >
+                          {conn.status}
+                        </Badge>
+                        <SyncButton id={conn.id} />
+                      </>
+                    )}
+                    <DeleteConnectionButton id={conn.id} provider={conn.provider} />
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
       )}
     </div>

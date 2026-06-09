@@ -69,6 +69,7 @@ model ProviderConnection {
   ownerType      OwnerType        @map("owner_type")
   provider       Provider
   encCredentials String           @map("enc_credentials")
+  gcpProjectId   String?          @map("gcp_project_id")
   status         ConnectionStatus @default(active)
   lastSyncedAt   DateTime?        @map("last_synced_at")
   backfillFrom   DateTime         @map("backfill_from") @db.Date
