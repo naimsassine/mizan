@@ -103,14 +103,17 @@ export function Sidebar({ unackAlerts = 0 }: { unackAlerts?: number }) {
           />
         </div>
 
-        <div className="w-full px-1.5">
+        <div className="flex h-9 w-9 items-center justify-center">
           <OrganizationSwitcher
             hidePersonal
             appearance={{
               elements: {
-                rootBox: "w-full",
+                rootBox: "flex items-center justify-center",
                 organizationSwitcherTrigger:
-                  "w-full h-8 rounded-lg px-2 text-xs text-zinc-500 hover:bg-zinc-50 justify-start gap-1.5 truncate transition-colors duration-200",
+                  "h-9 w-9 flex items-center justify-center rounded-lg p-0 hover:bg-zinc-100 transition-colors duration-200",
+                organizationPreviewTextContainer: "hidden",
+                organizationSwitcherTriggerIcon: "hidden",
+                avatarBox: "h-6 w-6",
               },
             }}
           />

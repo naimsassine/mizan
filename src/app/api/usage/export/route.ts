@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { subDays, format } from "date-fns"
+import type { Provider } from "@/generated/prisma/client"
 
 const VALID_RANGES = [7, 30, 90]
-const VALID_PROVIDERS = ["openai", "anthropic", "gemini", "bedrock"]
+const VALID_PROVIDERS: Provider[] = ["openai", "anthropic", "gemini", "bedrock", "groq"]
 
 export async function GET(req: NextRequest) {
   const { userId, orgId } = await auth()
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
   const rangeParam = Number(searchParams.get("range"))
   const providerParam = searchParams.get("provider") ?? "all"
   const days = VALID_RANGES.includes(rangeParam) ? rangeParam : 30
-  const providerFilter = VALID_PROVIDERS.includes(providerParam) ? providerParam : "all"
+  const providerFilter = VALID_PROVIDERS.includes(providerParam as Provider) ? (providerParam as Provider) : "all"
 
   const fromDate = subDays(new Date(), days)
 
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
     where: {
       ownerId,
       date: { gte: fromDate },
-      ...(providerFilter !== "all" ? { provider: providerFilter } : {}),
+      ...(providerFilter !== "all" ? { provider: providerFilter as Provider } : {}),
     },
     _sum: { costUsd: true, inputTokens: true, outputTokens: true },
     orderBy: [{ date: "desc" }],
@@ -37,9 +38,9 @@ export async function GET(req: NextRequest) {
       format(r.date, "yyyy-MM-dd"),
       r.provider,
       `"${r.model.replace(/"/g, '""')}"`,
-      String(Number(r._sum.inputTokens ?? 0)),
-      String(Number(r._sum.outputTokens ?? 0)),
-      Number(r._sum.costUsd ?? 0).toFixed(6),
+      String(Number(r._sum?.inputTokens ?? 0)),
+      String(Number(r._sum?.outputTokens ?? 0)),
+      Number(r._sum?.costUsd ?? 0).toFixed(6),
     ].join(",")
   )
 

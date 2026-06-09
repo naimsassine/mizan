@@ -38,6 +38,13 @@ const providers = [
     keyPrefix: "AKIA",
     placeholder: null, // uses multi-field form
   },
+  {
+    value: "groq",
+    label: "Groq",
+    hint: "Find your API key at console.groq.com/keys — requires Enterprise plan for Prometheus metrics",
+    keyPrefix: "gsk_",
+    placeholder: "gsk_...",
+  },
 ]
 
 const AWS_REGIONS = [

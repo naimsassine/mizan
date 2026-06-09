@@ -14,6 +14,7 @@ const providerLabel: Record<string, string> = {
   anthropic: "Anthropic",
   gemini: "Google Gemini / Vertex AI",
   bedrock: "AWS Bedrock",
+  groq: "Groq",
 }
 
 const providerAccent: Record<string, string> = {
@@ -21,6 +22,7 @@ const providerAccent: Record<string, string> = {
   anthropic: "border-l-orange-400",
   gemini: "border-l-blue-400",
   bedrock: "border-l-yellow-400",
+  groq: "border-l-red-400",
 }
 
 const statusVariant: Record<string, string> = {
@@ -109,15 +111,24 @@ export default async function ConnectionsPage({
                       <p className="text-sm font-medium text-zinc-900">
                         {providerLabel[conn.provider] ?? conn.provider}
                       </p>
-                      <p className="mt-0.5 text-xs text-zinc-400">
-                        {needsGcpProject
-                          ? "Project ID required to start syncing"
-                          : conn.lastSyncedAt
+                      {needsGcpProject ? (
+                        <p className="mt-0.5 text-xs text-zinc-400">Project ID required to start syncing</p>
+                      ) : (conn.backfillStatus === "pending" || conn.backfillStatus === "in_progress") && !conn.lastSyncedAt ? (
+                        <span className="mt-0.5 flex items-center gap-1.5">
+                          <span className="flex gap-0.5">
+                            <span className="h-1 w-1 rounded-full bg-zinc-400 animate-bounce [animation-delay:0ms]" />
+                            <span className="h-1 w-1 rounded-full bg-zinc-400 animate-bounce [animation-delay:150ms]" />
+                            <span className="h-1 w-1 rounded-full bg-zinc-400 animate-bounce [animation-delay:300ms]" />
+                          </span>
+                          <span className="text-xs text-zinc-400">Syncing</span>
+                        </span>
+                      ) : (
+                        <p className="mt-0.5 text-xs text-zinc-400">
+                          {conn.lastSyncedAt
                             ? `Synced ${formatDistanceToNow(conn.lastSyncedAt, { addSuffix: true })}`
-                            : conn.backfillStatus === "pending"
-                              ? "Sync pending..."
-                              : "Never synced"}
-                      </p>
+                            : "Never synced"}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">

@@ -12,7 +12,8 @@ import { format, parseISO } from "date-fns"
 
 interface SpendDataPoint {
   date: string
-  cost: number
+  api: number
+  subscription: number
 }
 
 interface SpendChartProps {
@@ -20,7 +21,9 @@ interface SpendChartProps {
 }
 
 interface TooltipPayload {
+  name: string
   value: number
+  fill: string
 }
 
 function CustomTooltip({
@@ -33,12 +36,27 @@ function CustomTooltip({
   label?: string
 }) {
   if (!active || !payload?.length || !label) return null
+  const total = payload.reduce((s, p) => s + (p.value ?? 0), 0)
+  const hasSubscription = payload.some((p) => p.name === "subscription" && p.value > 0)
   return (
     <div className="rounded-lg border border-zinc-100 bg-white px-3 py-2.5 shadow-md text-xs">
-      <p className="mb-0.5 text-zinc-400">{format(parseISO(label), "MMM d, yyyy")}</p>
-      <p className="font-mono font-semibold tabular-nums text-zinc-900">
-        ${payload[0].value.toFixed(2)}
-      </p>
+      <p className="mb-1 text-zinc-400">{format(parseISO(label), "MMM d, yyyy")}</p>
+      <p className="font-mono font-semibold tabular-nums text-zinc-900">${total.toFixed(2)}</p>
+      {hasSubscription && (
+        <div className="mt-1.5 space-y-0.5 border-t border-zinc-100 pt-1.5">
+          {payload.map((p) =>
+            p.value > 0 ? (
+              <div key={p.name} className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-sm" style={{ background: p.fill }} />
+                  <span className="capitalize text-zinc-400">{p.name}</span>
+                </div>
+                <span className="font-mono tabular-nums text-zinc-600">${p.value.toFixed(2)}</span>
+              </div>
+            ) : null,
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -74,7 +92,8 @@ export function SpendChart({ data }: SpendChartProps) {
           content={<CustomTooltip />}
           cursor={{ fill: "#f4f4f5", radius: 4 }}
         />
-        <Bar dataKey="cost" fill="#18181b" radius={[3, 3, 0, 0]} />
+        <Bar dataKey="api" name="api" stackId="spend" fill="#18181b" radius={[0, 0, 0, 0]} />
+        <Bar dataKey="subscription" name="subscription" stackId="spend" fill="#d4d4d8" radius={[3, 3, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   )

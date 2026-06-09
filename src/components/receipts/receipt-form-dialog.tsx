@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Plus, Loader2, Trash2 } from "lucide-react"
+import { Plus, Loader2, Trash2, Pencil } from "lucide-react"
 import { createReceipt, updateReceipt, deleteReceipt } from "@/app/(dashboard)/receipts/actions"
 import { format } from "date-fns"
 
@@ -43,14 +43,14 @@ interface ReceiptData {
   billingPeriodStart: Date | null
   billingPeriodEnd: Date | null
   invoiceId: string | null
+  usageType?: "api" | "subscription" | null
 }
 
 interface Props {
   receipt?: ReceiptData
-  children?: React.ReactNode
 }
 
-export function ReceiptFormDialog({ receipt, children }: Props) {
+export function ReceiptFormDialog({ receipt }: Props) {
   const isEdit = !!receipt
   const [open, setOpen] = useState(false)
   const [provider, setProvider] = useState(receipt?.provider ?? "")
@@ -64,6 +64,9 @@ export function ReceiptFormDialog({ receipt, children }: Props) {
     receipt?.billingPeriodEnd ? format(receipt.billingPeriodEnd, "yyyy-MM-dd") : "",
   )
   const [invoiceId, setInvoiceId] = useState(receipt?.invoiceId ?? "")
+  const [usageType, setUsageType] = useState<"api" | "subscription">(
+    receipt?.usageType === "subscription" ? "subscription" : "api",
+  )
   const [error, setError] = useState("")
   const [isPending, startTransition] = useTransition()
   const [isDeleting, startDeleteTransition] = useTransition()
@@ -94,6 +97,7 @@ export function ReceiptFormDialog({ receipt, children }: Props) {
       billingPeriodStart: periodStart || null,
       billingPeriodEnd: periodEnd || null,
       invoiceId: invoiceId.trim() || null,
+      usageType,
     }
 
     startTransition(async () => {
@@ -119,14 +123,16 @@ export function ReceiptFormDialog({ receipt, children }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset() }}>
-      <DialogTrigger asChild>
-        {children ?? (
-          <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs">
-            <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
-            Add receipt
-          </Button>
-        )}
-      </DialogTrigger>
+      {isEdit ? (
+        <DialogTrigger render={<button className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-300 transition-colors hover:bg-zinc-100 hover:text-zinc-600" />}>
+          <Pencil className="h-3.5 w-3.5" />
+        </DialogTrigger>
+      ) : (
+        <DialogTrigger render={<Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" />}>
+          <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
+          Add receipt
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle className="text-base font-semibold text-zinc-900">
@@ -136,7 +142,7 @@ export function ReceiptFormDialog({ receipt, children }: Props) {
         <form onSubmit={handleSubmit} className="mt-2 space-y-4">
           <div className="space-y-1.5">
             <Label className="text-xs text-zinc-600">Provider</Label>
-            <Select value={provider} onValueChange={(v) => setProvider(v)}>
+            <Select value={provider} onValueChange={(v) => { if (v) setProvider(v) }}>
               <SelectTrigger className="h-9 text-sm">
                 <SelectValue placeholder="Select provider" />
               </SelectTrigger>
@@ -148,6 +154,26 @@ export function ReceiptFormDialog({ receipt, children }: Props) {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-zinc-600">Type</Label>
+            <div className="flex rounded-lg border border-zinc-200 p-0.5 gap-0.5">
+              {(["api", "subscription"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setUsageType(t)}
+                  className={`flex-1 rounded-md py-1.5 text-xs font-medium transition-colors ${
+                    usageType === t
+                      ? "bg-zinc-900 text-white"
+                      : "text-zinc-500 hover:text-zinc-700"
+                  }`}
+                >
+                  {t === "api" ? "API usage" : "Subscription"}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-1.5">

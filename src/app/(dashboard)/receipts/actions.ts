@@ -42,6 +42,7 @@ export async function createReceipt(data: {
   billingPeriodStart: string | null
   billingPeriodEnd: string | null
   invoiceId: string | null
+  usageType?: "api" | "subscription"
 }) {
   const { userId, orgId } = await auth()
   if (!userId) return { error: "Unauthorized" }
@@ -60,6 +61,7 @@ export async function createReceipt(data: {
       billingPeriodStart: data.billingPeriodStart ? new Date(data.billingPeriodStart) : null,
       billingPeriodEnd: data.billingPeriodEnd ? new Date(data.billingPeriodEnd) : null,
       invoiceId: data.invoiceId || null,
+      usageType: data.usageType ?? "api",
       source: "receipt_upload",
       parsedAt: new Date(),
     },
@@ -78,6 +80,7 @@ export async function updateReceipt(
     billingPeriodStart: string | null
     billingPeriodEnd: string | null
     invoiceId: string | null
+    usageType?: "api" | "subscription"
   },
 ) {
   const { userId, orgId } = await auth()
@@ -94,6 +97,7 @@ export async function updateReceipt(
       billingPeriodStart: data.billingPeriodStart ? new Date(data.billingPeriodStart) : null,
       billingPeriodEnd: data.billingPeriodEnd ? new Date(data.billingPeriodEnd) : null,
       invoiceId: data.invoiceId || null,
+      ...(data.usageType ? { usageType: data.usageType } : {}),
     },
   })
 
@@ -147,6 +151,7 @@ export async function uploadReceipt(formData: FormData) {
       billingPeriodStart: parsed.billingPeriodStart ? new Date(parsed.billingPeriodStart) : null,
       billingPeriodEnd: parsed.billingPeriodEnd ? new Date(parsed.billingPeriodEnd) : null,
       invoiceId: parsed.invoiceId,
+      usageType: parsed.usageType ?? "api",
       source: "receipt_upload",
       parsedAt: new Date(),
       rawContent: `[file: ${file.name}]`,

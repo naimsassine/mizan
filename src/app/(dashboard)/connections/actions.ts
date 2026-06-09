@@ -10,6 +10,7 @@ import { syncOpenAI, syncOpenAIIncremental } from "@/lib/sync/openai"
 import { syncAnthropic, syncAnthropicIncremental } from "@/lib/sync/anthropic"
 import { syncGemini, syncGeminiIncremental } from "@/lib/sync/gemini"
 import { syncBedrock, syncBedrockIncremental } from "@/lib/sync/bedrock"
+import { syncGroq, syncGroqIncremental } from "@/lib/sync/groq"
 
 // isBedrock=true means credValue is already a JSON string of { accessKeyId, secretAccessKey, region }
 // Otherwise credValue is a plain API key string
@@ -17,7 +18,7 @@ export async function createConnection(provider: string, credValue: string, isBe
   const { userId, orgId } = await auth()
   if (!userId) return { error: "Unauthorized" }
 
-  const validProviders = ["openai", "anthropic", "gemini", "bedrock"]
+  const validProviders = ["openai", "anthropic", "gemini", "bedrock", "groq"]
   if (!validProviders.includes(provider)) return { error: "Invalid provider" }
   if (!credValue.trim()) return { error: "Credentials are required" }
 
@@ -32,7 +33,7 @@ export async function createConnection(provider: string, credValue: string, isBe
       data: {
         ownerId,
         ownerType: ownerType as "user" | "org",
-        provider: provider as "openai" | "anthropic" | "gemini" | "bedrock",
+        provider: provider as "openai" | "anthropic" | "gemini" | "bedrock" | "groq",
         encCredentials: encrypt(credJson),
         backfillFrom: startOfDay(subMonths(new Date(), 3)),
         backfillStatus: "pending",
@@ -48,6 +49,7 @@ export async function createConnection(provider: string, credValue: string, isBe
     else if (provider === "anthropic") await syncAnthropic(connectionId)
     else if (provider === "gemini") await syncGemini(connectionId)
     else if (provider === "bedrock") await syncBedrock(connectionId)
+    else if (provider === "groq") await syncGroq(connectionId)
   })
 
   revalidatePath("/connections")
@@ -70,6 +72,7 @@ export async function triggerSync(connectionId: string) {
     else if (connection.provider === "anthropic") await syncAnthropicIncremental(connectionId)
     else if (connection.provider === "gemini") await syncGeminiIncremental(connectionId)
     else if (connection.provider === "bedrock") await syncBedrockIncremental(connectionId)
+    else if (connection.provider === "groq") await syncGroqIncremental(connectionId)
   })
 
   revalidatePath("/connections")

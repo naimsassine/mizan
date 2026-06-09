@@ -86,6 +86,7 @@ export async function scanEmails(
             : null,
           billingPeriodEnd: parsed.billingPeriodEnd ? new Date(parsed.billingPeriodEnd) : null,
           invoiceId: parsed.invoiceId,
+          usageType: parsed.usageType ?? "api",
           source: "email_forward",
           parsedAt: new Date(),
           rawContent: `${msg.from}\n${msg.subject}\n\n${msg.body}`.slice(0, 10_000),

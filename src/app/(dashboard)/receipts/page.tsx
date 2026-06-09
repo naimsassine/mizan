@@ -9,7 +9,6 @@ import { ScanEmailButton } from "@/components/receipts/scan-email-button"
 import { DisconnectEmailButton } from "@/components/receipts/disconnect-email-button"
 import { ReceiptFormDialog } from "@/components/receipts/receipt-form-dialog"
 import { UploadReceiptButton } from "@/components/receipts/upload-receipt-button"
-import { Pencil } from "lucide-react"
 
 const providerColors: Record<string, string> = {
   openai: "bg-emerald-50 text-emerald-700 border-emerald-100",
@@ -20,6 +19,7 @@ const providerColors: Record<string, string> = {
   cohere: "bg-teal-50 text-teal-700 border-teal-100",
   perplexity: "bg-cyan-50 text-cyan-700 border-cyan-100",
   cursor: "bg-pink-50 text-pink-700 border-pink-100",
+  groq: "bg-red-50 text-red-700 border-red-100",
 }
 
 export default async function ReceiptsPage({
@@ -163,6 +163,16 @@ export default async function ReceiptsPage({
                           {r.provider}
                         </Badge>
                       )}
+                      <Badge
+                        variant="outline"
+                        className={`h-5 px-1.5 py-0 text-[10px] ${
+                          r.usageType === "subscription"
+                            ? "bg-violet-50 text-violet-600 border-violet-100"
+                            : "bg-zinc-50 text-zinc-500 border-zinc-100"
+                        }`}
+                      >
+                        {r.usageType === "subscription" ? "subscription" : "api"}
+                      </Badge>
                       <span className="font-mono text-xs font-semibold text-zinc-900">
                         ${Number(r.amountUsd).toFixed(2)}
                       </span>
@@ -182,16 +192,13 @@ export default async function ReceiptsPage({
                     receipt={{
                       id: r.id,
                       provider: r.provider,
-                      amountUsd: r.amountUsd,
+                      amountUsd: Number(r.amountUsd),
                       billingPeriodStart: r.billingPeriodStart,
                       billingPeriodEnd: r.billingPeriodEnd,
                       invoiceId: r.invoiceId,
+                      usageType: r.usageType,
                     }}
-                  >
-                    <button className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-300 transition-colors hover:bg-zinc-100 hover:text-zinc-600">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                  </ReceiptFormDialog>
+                  />
                 </div>
               ))}
             </div>

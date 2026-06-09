@@ -5,6 +5,7 @@ export interface ParsedReceipt {
   billingPeriodStart: string | null
   billingPeriodEnd: string | null
   invoiceId: string | null
+  usageType: "api" | "subscription" | null
 }
 
 const EMPTY: ParsedReceipt = {
@@ -14,6 +15,7 @@ const EMPTY: ParsedReceipt = {
   billingPeriodStart: null,
   billingPeriodEnd: null,
   invoiceId: null,
+  usageType: null,
 }
 
 export async function parseEmailAsReceipt(
@@ -34,12 +36,14 @@ Is this a billing receipt or invoice for an AI service/API? If yes, extract the 
 Reply with JSON only (no markdown fences):
 {
   "isAiBillingEmail": <true|false>,
-  "provider": <"openai"|"anthropic"|"google"|"aws"|"mistral"|"cohere"|"perplexity"|"cursor"|"together"|"replicate"|"other"|null>,
+  "provider": <"openai"|"anthropic"|"google"|"aws"|"groq"|"mistral"|"cohere"|"perplexity"|"cursor"|"together"|"replicate"|"other"|null>,
   "amountUsd": <number|null>,
   "billingPeriodStart": <"YYYY-MM-DD"|null>,
   "billingPeriodEnd": <"YYYY-MM-DD"|null>,
-  "invoiceId": <string|null>
-}`
+  "invoiceId": <string|null>,
+  "usageType": <"api"|"subscription"|null>
+}
+usageType rules: "subscription" = flat-rate monthly plan (ChatGPT Plus, Claude Pro, Copilot, Cursor subscription, etc). "api" = usage-based API invoice (pay-per-token). null if unclear.`
 
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {

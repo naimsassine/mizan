@@ -17,6 +17,12 @@ enum Provider {
   anthropic
   gemini
   bedrock
+  groq
+}
+
+enum UsageType {
+  api
+  subscription
 }
 
 enum ConnectionStatus {
@@ -134,6 +140,7 @@ model Receipt {
   billingPeriodEnd    DateTime?       @map("billing_period_end") @db.Date
   invoiceId           String?         @map("invoice_id")
   source              String
+  usageType           UsageType       @default(api) @map("usage_type")
   parsedAt            DateTime?       @map("parsed_at")
   rawContent          String?         @map("raw_content") @db.Text
   createdAt           DateTime        @default(now()) @map("created_at")

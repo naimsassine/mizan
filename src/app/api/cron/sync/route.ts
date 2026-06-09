@@ -4,6 +4,7 @@ import { syncOpenAIIncremental } from "@/lib/sync/openai"
 import { syncAnthropicIncremental } from "@/lib/sync/anthropic"
 import { syncGeminiIncremental } from "@/lib/sync/gemini"
 import { syncBedrockIncremental } from "@/lib/sync/bedrock"
+import { syncGroqIncremental } from "@/lib/sync/groq"
 import { scanEmails } from "@/lib/scan-emails"
 import { sendAlertEmail } from "@/lib/send-alert-email"
 import { startOfDay, startOfWeek, startOfMonth } from "date-fns"
@@ -31,6 +32,7 @@ export async function GET(req: Request) {
       if (c.provider === "anthropic") return syncAnthropicIncremental(c.id)
       if (c.provider === "gemini") return syncGeminiIncremental(c.id)
       if (c.provider === "bedrock") return syncBedrockIncremental(c.id)
+      if (c.provider === "groq") return syncGroqIncremental(c.id)
       return syncOpenAIIncremental(c.id)
     })
   )

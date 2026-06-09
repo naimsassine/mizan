@@ -7,6 +7,7 @@ const EMPTY: ParsedReceipt = {
   billingPeriodStart: null,
   billingPeriodEnd: null,
   invoiceId: null,
+  usageType: null,
 }
 
 const SUPPORTED_IMAGE_TYPES = new Set([
@@ -17,7 +18,7 @@ const SUPPORTED_IMAGE_TYPES = new Set([
 ])
 
 const PROMPT =
-  'Extract AI service billing information from this document. Is it a receipt or invoice for an AI API or subscription? Reply with JSON only (no markdown fences): { "isAiBillingEmail": boolean, "provider": "openai"|"anthropic"|"google"|"aws"|"mistral"|"cohere"|"perplexity"|"cursor"|"together"|"replicate"|"other"|null, "amountUsd": number|null, "billingPeriodStart": "YYYY-MM-DD"|null, "billingPeriodEnd": "YYYY-MM-DD"|null, "invoiceId": string|null }'
+  'Extract AI service billing information from this document. Is it a receipt or invoice for an AI API or subscription? Reply with JSON only (no markdown fences): { "isAiBillingEmail": boolean, "provider": "openai"|"anthropic"|"google"|"aws"|"groq"|"mistral"|"cohere"|"perplexity"|"cursor"|"together"|"replicate"|"other"|null, "amountUsd": number|null, "billingPeriodStart": "YYYY-MM-DD"|null, "billingPeriodEnd": "YYYY-MM-DD"|null, "invoiceId": string|null, "usageType": "api"|"subscription"|null }. usageType: "subscription" = flat-rate monthly plan (ChatGPT Plus, Claude Pro, Copilot, Cursor subscription, etc). "api" = usage-based API invoice (pay-per-token). null if unclear.'
 
 export async function parseFileAsReceipt(
   buffer: Buffer,

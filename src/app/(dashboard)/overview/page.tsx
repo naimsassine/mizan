@@ -18,11 +18,12 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 
 function receiptEffectiveDate(r: {
+  billingPeriodStart: Date | null
   billingPeriodEnd: Date | null
   parsedAt: Date | null
   createdAt: Date
 }): Date {
-  return r.billingPeriodEnd ?? r.parsedAt ?? r.createdAt
+  return r.billingPeriodStart ?? r.billingPeriodEnd ?? r.parsedAt ?? r.createdAt
 }
 
 async function getDashboardData(ownerId: string) {
@@ -52,7 +53,7 @@ async function getDashboardData(ownerId: string) {
       // Receipts for the last 30 days + current month — use effective date filtering in JS
       prisma.receipt.findMany({
         where: { ownerId },
-        select: { amountUsd: true, billingPeriodEnd: true, parsedAt: true, createdAt: true },
+        select: { amountUsd: true, billingPeriodStart: true, billingPeriodEnd: true, parsedAt: true, createdAt: true, usageType: true },
         orderBy: { createdAt: "desc" },
         take: 500,
       }),
@@ -70,8 +71,13 @@ async function getDashboardData(ownerId: string) {
   })
 
   const apiMtd = monthlyRecords.reduce((s: number, r) => s + Number(r.costUsd), 0)
-  const receiptMtd = mtdReceipts.reduce((s: number, r) => s + Number(r.amountUsd), 0)
-  const mtdSpend = apiMtd + receiptMtd
+  const apiReceiptMtd = mtdReceipts
+    .filter((r) => r.usageType !== "subscription")
+    .reduce((s: number, r) => s + Number(r.amountUsd), 0)
+  const subscriptionMtd = mtdReceipts
+    .filter((r) => r.usageType === "subscription")
+    .reduce((s: number, r) => s + Number(r.amountUsd), 0)
+  const mtdSpend = apiMtd + apiReceiptMtd + subscriptionMtd
 
   const lastMonthApiSpend = lastMonthRecords.reduce((s: number, r) => s + Number(r.costUsd), 0)
   const lastMonthReceiptSpend = lastMonthReceipts.reduce(
@@ -94,18 +100,26 @@ async function getDashboardData(ownerId: string) {
   const dailyAvg = daysElapsed > 0 ? mtdSpend / daysElapsed : 0
   const forecastMonthEnd = dailyAvg * daysInMonth
 
-  // Daily aggregation for chart — merge API usage + receipts
-  const dailyMap = new Map<string, number>()
+  // Daily aggregation for chart — stacked API vs subscription
+  const dailyMap = new Map<string, { api: number; subscription: number }>()
+  const getDay = (key: string) => dailyMap.get(key) ?? { api: 0, subscription: 0 }
+
   for (const r of last30Days) {
     const key = format(r.date, "yyyy-MM-dd")
-    dailyMap.set(key, (dailyMap.get(key) ?? 0) + Number(r.costUsd))
+    const d = getDay(key)
+    dailyMap.set(key, { ...d, api: d.api + Number(r.costUsd) })
   }
   for (const r of last30Receipts) {
     const key = format(receiptEffectiveDate(r), "yyyy-MM-dd")
-    dailyMap.set(key, (dailyMap.get(key) ?? 0) + Number(r.amountUsd))
+    const d = getDay(key)
+    if (r.usageType === "subscription") {
+      dailyMap.set(key, { ...d, subscription: d.subscription + Number(r.amountUsd) })
+    } else {
+      dailyMap.set(key, { ...d, api: d.api + Number(r.amountUsd) })
+    }
   }
   const chartData = Array.from(dailyMap.entries())
-    .map(([date, cost]) => ({ date, cost }))
+    .map(([date, { api, subscription }]) => ({ date, api, subscription }))
     .sort((a, b) => a.date.localeCompare(b.date))
 
   // Per-model breakdown (API records only — receipts have no model granularity)
@@ -126,6 +140,8 @@ async function getDashboardData(ownerId: string) {
 
   return {
     mtdSpend,
+    apiSpend: apiMtd + apiReceiptMtd,
+    subscriptionSpend: subscriptionMtd,
     lastMonthSpend,
     spendDelta,
     totalTokens,
@@ -136,7 +152,6 @@ async function getDashboardData(ownerId: string) {
     dailyAvg,
     daysInMonth,
     daysElapsed,
-    receiptMtd,
   }
 }
 
@@ -153,6 +168,8 @@ export default async function OverviewPage() {
 
   const {
     mtdSpend,
+    apiSpend,
+    subscriptionSpend,
     spendDelta,
     totalTokens,
     chartData,
@@ -162,7 +179,6 @@ export default async function OverviewPage() {
     dailyAvg,
     daysInMonth,
     daysElapsed,
-    receiptMtd,
   } = await getDashboardData(ownerId)
 
   const firstName = user?.firstName ?? "there"
@@ -235,12 +251,24 @@ export default async function OverviewPage() {
             />
           </div>
 
-          {receiptMtd > 0 && (
-            <p className="text-xs text-zinc-400">
-              Includes{" "}
-              <span className="font-medium text-zinc-600">${receiptMtd.toFixed(2)}</span> from
-              email receipts this month.
-            </p>
+          {(apiSpend > 0 || subscriptionSpend > 0) && (
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-sm bg-zinc-900" />
+                <span className="text-xs text-zinc-500">
+                  API <span className="font-medium text-zinc-700">${apiSpend.toFixed(2)}</span>
+                </span>
+              </div>
+              {subscriptionSpend > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-sm bg-zinc-300" />
+                  <span className="text-xs text-zinc-500">
+                    Subscriptions{" "}
+                    <span className="font-medium text-zinc-700">${subscriptionSpend.toFixed(2)}</span>
+                  </span>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Spend chart */}
