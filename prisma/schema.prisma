@@ -44,6 +44,11 @@ enum BudgetPeriod {
   monthly
 }
 
+enum EmailProvider {
+  gmail
+  outlook
+}
+
 model Profile {
   clerkUserId String   @id @map("clerk_user_id")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -64,6 +69,7 @@ model ProviderConnection {
   ownerType      OwnerType        @map("owner_type")
   provider       Provider
   encCredentials String           @map("enc_credentials")
+  gcpProjectId   String?          @map("gcp_project_id")
   status         ConnectionStatus @default(active)
   lastSyncedAt   DateTime?        @map("last_synced_at")
   backfillFrom   DateTime         @map("backfill_from") @db.Date
@@ -97,20 +103,45 @@ model UsageRecord {
   @@map("usage_records")
 }
 
-model Receipt {
-  id                 String    @id @default(uuid())
-  ownerId            String    @map("owner_id")
-  ownerType          OwnerType @map("owner_type")
-  provider           String?
-  amountUsd          Decimal   @map("amount_usd") @db.Decimal(10, 2)
-  billingPeriodStart DateTime? @map("billing_period_start") @db.Date
-  billingPeriodEnd   DateTime? @map("billing_period_end") @db.Date
-  invoiceId          String?   @map("invoice_id")
-  source             String
-  parsedAt           DateTime? @map("parsed_at")
-  rawContent         String?   @map("raw_content") @db.Text
-  createdAt          DateTime  @default(now()) @map("created_at")
+model EmailConnection {
+  id             String           @id @default(uuid())
+  ownerId        String           @map("owner_id")
+  ownerType      OwnerType        @map("owner_type")
+  emailProvider  EmailProvider    @default(gmail) @map("email_provider")
+  emailAddress   String           @map("email_address")
+  encCredentials String           @map("enc_credentials")
+  status         ConnectionStatus @default(active)
+  lastScannedAt  DateTime?        @map("last_scanned_at")
+  lastScanFound  Int?             @map("last_scan_found")
+  createdAt      DateTime         @default(now()) @map("created_at")
 
+  receipts Receipt[]
+
+  @@unique([emailAddress, ownerId])
+  @@index([ownerId, ownerType])
+  @@map("email_connections")
+}
+
+model Receipt {
+  id                  String          @id @default(uuid())
+  ownerId             String          @map("owner_id")
+  ownerType           OwnerType       @map("owner_type")
+  emailConnectionId   String?         @map("email_connection_id")
+  externalId          String?         @map("external_id")
+  provider            String?
+  amountUsd           Decimal         @map("amount_usd") @db.Decimal(10, 2)
+  billingPeriodStart  DateTime?       @map("billing_period_start") @db.Date
+  billingPeriodEnd    DateTime?       @map("billing_period_end") @db.Date
+  invoiceId           String?         @map("invoice_id")
+  source              String
+  parsedAt            DateTime?       @map("parsed_at")
+  rawContent          String?         @map("raw_content") @db.Text
+  createdAt           DateTime        @default(now()) @map("created_at")
+
+  emailConnection EmailConnection? @relation(fields: [emailConnectionId], references: [id], onDelete: SetNull)
+
+  @@unique([emailConnectionId, externalId])
+  @@index([ownerId, ownerType])
   @@map("receipts")
 }
 

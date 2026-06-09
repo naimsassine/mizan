@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Loader2 } from "lucide-react"
+import { Plus, Loader2, ExternalLink } from "lucide-react"
 import { createConnection } from "@/app/(dashboard)/connections/actions"
 
 const providers = [
@@ -147,7 +147,45 @@ export function AddConnectionDialog() {
             </Select>
           </div>
 
-          {provider && !isBedrock && (
+          {provider === "gemini" && (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+                <p className="text-xs font-medium text-blue-800 mb-1">
+                  Vertex AI — real usage data
+                </p>
+                <p className="text-[11px] text-blue-700 mb-2.5">
+                  Connect via Google OAuth to sync actual token usage and costs from Cloud
+                  Monitoring. Requires a GCP project with Vertex AI enabled.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setOpen(false); window.location.href = "/api/auth/gcp" }}
+                  className="flex items-center gap-1.5 text-xs font-medium text-blue-700 hover:text-blue-900 transition-colors"
+                >
+                  Connect with Google
+                  <ExternalLink className="h-3 w-3" />
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-px flex-1 bg-zinc-100" />
+                <span className="text-[10px] text-zinc-400">or use AI Studio key (no usage data)</span>
+                <div className="h-px flex-1 bg-zinc-100" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-zinc-600">AI Studio API Key</Label>
+                <Input
+                  type="password"
+                  placeholder={selectedProvider?.placeholder ?? ""}
+                  value={apiKey}
+                  onChange={(e) => { setApiKey(e.target.value); setError("") }}
+                  className="h-9 font-mono text-sm"
+                />
+                <p className="text-[11px] text-zinc-400">{selectedProvider?.hint}</p>
+              </div>
+            </div>
+          )}
+
+          {provider && !isBedrock && provider !== "gemini" && (
             <div className="space-y-1.5">
               <Label className="text-xs text-zinc-600">API Key</Label>
               <Input

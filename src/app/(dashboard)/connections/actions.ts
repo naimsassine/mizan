@@ -88,3 +88,27 @@ export async function deleteConnection(id: string) {
   revalidatePath("/overview")
   return { error: null }
 }
+
+export async function updateGcpProject(connectionId: string, projectId: string) {
+  const { userId, orgId } = await auth()
+  if (!userId) return { error: "Unauthorized" }
+
+  const ownerId = orgId ?? userId
+  const conn = await prisma.providerConnection.findFirst({
+    where: { id: connectionId, ownerId, provider: "gemini" },
+  })
+  if (!conn) return { error: "Not found" }
+
+  await prisma.providerConnection.update({
+    where: { id: connectionId },
+    data: { gcpProjectId: projectId.trim() },
+  })
+
+  after(async () => {
+    const { syncGemini } = await import("@/lib/sync/gemini")
+    await syncGemini(connectionId)
+  })
+
+  revalidatePath("/connections")
+  return { error: null }
+}

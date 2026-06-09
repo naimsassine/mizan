@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, BarChart2, Plug, Bell, Settings, Scale } from "lucide-react"
+import { LayoutDashboard, BarChart2, Plug, Bell, Settings, Scale, Receipt } from "lucide-react"
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -11,6 +11,7 @@ const navItems = [
   { href: "/overview", icon: LayoutDashboard, label: "Overview" },
   { href: "/usage", icon: BarChart2, label: "Usage" },
   { href: "/connections", icon: Plug, label: "Connections" },
+  { href: "/receipts", icon: Receipt, label: "Receipts" },
   { href: "/alerts", icon: Bell, label: "Alerts" },
 ]
 
