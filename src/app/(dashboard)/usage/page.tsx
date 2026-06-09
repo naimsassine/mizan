@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { SpendChart } from "@/components/dashboard/spend-chart"
+import { UsageTable } from "@/components/usage/usage-table"
 import { Download } from "lucide-react"
 
 const providerColors: Record<string, string> = {
@@ -246,63 +247,20 @@ export default async function UsagePage({
         </Card>
       ) : (
         <Card className="overflow-hidden rounded-xl border-zinc-100 bg-white shadow-none">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-100">
-                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-400">Date</th>
-                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-400">Model</th>
-                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-400">Provider</th>
-                  <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">Input</th>
-                  <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">Output</th>
-                  <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">Cost</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-50">
-                {records.map((row, i) => (
-                  <tr
-                    key={`${String(row.date)}-${row.model}-${i}`}
-                    className="transition-colors duration-100 hover:bg-zinc-50/70"
-                  >
-                    <td className="px-5 py-3 text-xs text-zinc-500">{format(row.date, "MMM d, yyyy")}</td>
-                    <td className="max-w-[200px] px-5 py-3">
-                      <span className="block truncate font-mono text-xs font-medium text-zinc-900">{row.model}</span>
-                    </td>
-                    <td className="px-5 py-3">
-                      <Badge variant="outline" className={`h-4 px-1.5 py-0 text-[10px] ${providerColors[row.provider] ?? ""}`}>
-                        {row.provider}
-                      </Badge>
-                    </td>
-                    <td className="px-5 py-3 text-right font-mono text-xs tabular-nums text-zinc-600">
-                      {formatTokens(Number(row._sum.inputTokens ?? 0))}
-                    </td>
-                    <td className="px-5 py-3 text-right font-mono text-xs tabular-nums text-zinc-600">
-                      {formatTokens(Number(row._sum.outputTokens ?? 0))}
-                    </td>
-                    <td className="px-5 py-3 text-right font-mono text-xs font-semibold tabular-nums text-zinc-900">
-                      ${Number(row._sum.costUsd ?? 0).toFixed(4)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-zinc-100 bg-zinc-50/60">
-                  <td colSpan={3} className="px-5 py-3 text-xs font-medium text-zinc-500">
-                    {records.length} {records.length === 1 ? "row" : "rows"}
-                  </td>
-                  <td className="px-5 py-3 text-right font-mono text-xs tabular-nums text-zinc-600">
-                    {formatTokens(records.reduce((s, r) => s + Number(r._sum.inputTokens ?? 0), 0))}
-                  </td>
-                  <td className="px-5 py-3 text-right font-mono text-xs tabular-nums text-zinc-600">
-                    {formatTokens(records.reduce((s, r) => s + Number(r._sum.outputTokens ?? 0), 0))}
-                  </td>
-                  <td className="px-5 py-3 text-right font-mono text-xs font-semibold tabular-nums text-zinc-900">
-                    ${totalCost.toFixed(4)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+          <UsageTable
+            rows={records.map((r) => ({
+              date: r.date,
+              model: r.model,
+              provider: r.provider,
+              inputTokens: Number(r._sum.inputTokens ?? 0),
+              outputTokens: Number(r._sum.outputTokens ?? 0),
+              costUsd: Number(r._sum.costUsd ?? 0),
+            }))}
+            totalCost={apiCost}
+            totalInputTokens={records.reduce((s, r) => s + Number(r._sum.inputTokens ?? 0), 0)}
+            totalOutputTokens={records.reduce((s, r) => s + Number(r._sum.outputTokens ?? 0), 0)}
+            providerColors={providerColors}
+          />
         </Card>
       )}
 

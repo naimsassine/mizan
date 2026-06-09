@@ -1,19 +1,21 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useTransition } from "react"
 import { RefreshCw, Loader2 } from "lucide-react"
 import { triggerSync } from "@/app/(dashboard)/connections/actions"
+import { toast } from "sonner"
 
 export function SyncButton({ id }: { id: string }) {
   const [isPending, startTransition] = useTransition()
-  const [done, setDone] = useState(false)
 
   function handleClick() {
-    setDone(false)
     startTransition(async () => {
-      await triggerSync(id)
-      setDone(true)
-      setTimeout(() => setDone(false), 3000)
+      try {
+        await triggerSync(id)
+        toast.success("Sync complete", { description: "Usage data is up to date." })
+      } catch {
+        toast.error("Sync failed", { description: "Check your connection credentials." })
+      }
     })
   }
 
@@ -27,7 +29,7 @@ export function SyncButton({ id }: { id: string }) {
       {isPending ? (
         <Loader2 className="h-3.5 w-3.5 animate-spin" />
       ) : (
-        <RefreshCw className={`h-3.5 w-3.5 ${done ? "text-emerald-500" : ""}`} />
+        <RefreshCw className="h-3.5 w-3.5" />
       )}
     </button>
   )

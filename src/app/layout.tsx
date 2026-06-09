@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 import { ClerkProvider } from "@clerk/nextjs"
 import { shadcn } from "@clerk/ui/themes"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { Toaster } from "sonner"
 import "./globals.css"
 
 const geist = Geist({
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <html lang="en" className={`${geist.variable} ${geistMono.variable} h-full`}>
         <body className="h-full font-sans antialiased">
           <TooltipProvider>{children}</TooltipProvider>
+          <Toaster position="bottom-right" toastOptions={{ className: "text-xs font-sans" }} />
         </body>
       </html>
     </ClerkProvider>

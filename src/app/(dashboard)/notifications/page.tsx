@@ -55,7 +55,7 @@ export default async function NotificationsPage() {
     prisma.alert.findMany({
       where: { budgetRule: { ownerId } },
       orderBy: { triggeredAt: "desc" },
-      take: 50,
+      take: 20,
       include: {
         budgetRule: { select: { provider: true, period: true, limitUsd: true } },
       },

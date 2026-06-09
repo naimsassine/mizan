@@ -77,7 +77,9 @@ export default async function ReceiptsPage({
 
       {/* Connected email accounts */}
       {emailConnections.length > 0 && (
-        <div className="mb-6 space-y-2">
+        <div className="mb-6">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">Connected email accounts</p>
+          <div className="space-y-2">
           {emailConnections.map((conn) => (
             <Card
               key={conn.id}
@@ -129,6 +131,7 @@ export default async function ReceiptsPage({
               </CardContent>
             </Card>
           ))}
+          </div>
         </div>
       )}
 

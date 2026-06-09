@@ -5,12 +5,19 @@ import { Trash2, Loader2, AlertTriangle } from "lucide-react"
 import { deleteConnection } from "@/app/(dashboard)/connections/actions"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
 
 const providerLabel: Record<string, string> = {
   openai: "OpenAI",
   anthropic: "Anthropic",
   gemini: "Google Gemini",
   bedrock: "AWS Bedrock",
+  groq: "Groq",
+  mistral: "Mistral AI",
+  grok: "xAI / Grok",
+  kimi: "Kimi",
+  openrouter: "OpenRouter",
+  litellm: "LiteLLM",
 }
 
 export function DeleteConnectionButton({ id, provider }: { id: string; provider: string }) {
@@ -21,6 +28,9 @@ export function DeleteConnectionButton({ id, provider }: { id: string; provider:
     startTransition(async () => {
       await deleteConnection(id)
       setOpen(false)
+      toast.success(`${providerLabel[provider] ?? provider} removed`, {
+        description: "Connection and all synced data deleted.",
+      })
     })
   }
 
@@ -28,6 +38,7 @@ export function DeleteConnectionButton({ id, provider }: { id: string; provider:
     <>
       <button
         onClick={() => setOpen(true)}
+        title="Remove connection"
         className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors duration-200 hover:bg-red-50 hover:text-red-500"
       >
         <Trash2 className="h-3.5 w-3.5" />
