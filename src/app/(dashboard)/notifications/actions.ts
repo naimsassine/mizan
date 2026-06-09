@@ -27,13 +27,14 @@ export async function createBudgetRule(formData: FormData) {
       period: period as "daily" | "weekly" | "monthly",
       limitUsd,
       alertAtPct,
-      provider: provider && provider !== "all"
-        ? (provider as "openai" | "anthropic" | "gemini" | "bedrock")
-        : null,
+      provider:
+        provider && provider !== "all"
+          ? (provider as "openai" | "anthropic" | "gemini" | "bedrock" | "groq" | "mistral" | "grok" | "kimi" | "openrouter" | "litellm")
+          : null,
     },
   })
 
-  revalidatePath("/alerts")
+  revalidatePath("/notifications")
   return { error: null }
 }
 
@@ -43,7 +44,7 @@ export async function deleteBudgetRule(id: string) {
 
   const ownerId = orgId ?? userId
   await prisma.budgetRule.deleteMany({ where: { id, ownerId } })
-  revalidatePath("/alerts")
+  revalidatePath("/notifications")
   return { error: null }
 }
 
@@ -53,7 +54,6 @@ export async function acknowledgeAlert(id: string) {
 
   const ownerId = orgId ?? userId
 
-  // Verify the alert belongs to this owner via its budget rule
   const alert = await prisma.alert.findUnique({
     where: { id },
     include: { budgetRule: { select: { ownerId: true } } },
@@ -65,6 +65,35 @@ export async function acknowledgeAlert(id: string) {
     data: { acknowledgedAt: new Date() },
   })
 
-  revalidatePath("/alerts")
+  revalidatePath("/notifications")
+  return { error: null }
+}
+
+export async function saveDigestSettings(data: {
+  weeklyDigest: boolean
+  weeklyDigestDay: number
+  weeklyDigestProviders: string[]
+}) {
+  const { userId } = await auth()
+  if (!userId) return { error: "Unauthorized" }
+
+  if (data.weeklyDigestDay < 0 || data.weeklyDigestDay > 6) return { error: "Invalid day" }
+
+  await prisma.userSettings.upsert({
+    where: { clerkUserId: userId },
+    update: {
+      weeklyDigest: data.weeklyDigest,
+      weeklyDigestDay: data.weeklyDigestDay,
+      weeklyDigestProviders: data.weeklyDigestProviders.join(","),
+    },
+    create: {
+      clerkUserId: userId,
+      weeklyDigest: data.weeklyDigest,
+      weeklyDigestDay: data.weeklyDigestDay,
+      weeklyDigestProviders: data.weeklyDigestProviders.join(","),
+    },
+  })
+
+  revalidatePath("/notifications")
   return { error: null }
 }

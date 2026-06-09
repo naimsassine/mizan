@@ -106,6 +106,21 @@ export async function updateReceipt(
   return { error: null }
 }
 
+export async function reclassifyReceipt(id: string, usageType: "api" | "subscription") {
+  const { userId, orgId } = await auth()
+  if (!userId) return { error: "Unauthorized" }
+
+  const ownerId = orgId ?? userId
+  await prisma.receipt.updateMany({
+    where: { id, ownerId },
+    data: { usageType },
+  })
+
+  revalidatePath("/receipts")
+  revalidatePath("/overview")
+  return { error: null }
+}
+
 export async function deleteReceipt(id: string) {
   const { userId, orgId } = await auth()
   if (!userId) return { error: "Unauthorized" }

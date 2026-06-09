@@ -5,8 +5,14 @@ import { syncAnthropicIncremental } from "@/lib/sync/anthropic"
 import { syncGeminiIncremental } from "@/lib/sync/gemini"
 import { syncBedrockIncremental } from "@/lib/sync/bedrock"
 import { syncGroqIncremental } from "@/lib/sync/groq"
+import { syncMistralIncremental } from "@/lib/sync/mistral"
+import { syncGrokIncremental } from "@/lib/sync/grok"
+import { syncKimiIncremental } from "@/lib/sync/kimi"
+import { syncOpenRouterIncremental } from "@/lib/sync/openrouter"
+import { syncLiteLLMIncremental } from "@/lib/sync/litellm"
 import { scanEmails } from "@/lib/scan-emails"
 import { sendAlertEmail } from "@/lib/send-alert-email"
+import { sendWeeklyDigest } from "@/lib/send-weekly-digest"
 import { startOfDay, startOfWeek, startOfMonth } from "date-fns"
 
 // Called daily by Vercel cron — syncs all active connections then checks budget alerts
@@ -33,6 +39,11 @@ export async function GET(req: Request) {
       if (c.provider === "gemini") return syncGeminiIncremental(c.id)
       if (c.provider === "bedrock") return syncBedrockIncremental(c.id)
       if (c.provider === "groq") return syncGroqIncremental(c.id)
+      if (c.provider === "mistral") return syncMistralIncremental(c.id)
+      if (c.provider === "grok") return syncGrokIncremental(c.id)
+      if (c.provider === "kimi") return syncKimiIncremental(c.id)
+      if (c.provider === "openrouter") return syncOpenRouterIncremental(c.id)
+      if (c.provider === "litellm") return syncLiteLLMIncremental(c.id)
       return syncOpenAIIncremental(c.id)
     })
   )
@@ -44,7 +55,19 @@ export async function GET(req: Request) {
   const ownerIds = [...new Set(connections.map((c) => c.ownerId))]
   await Promise.allSettled(ownerIds.map(checkBudgetAlerts))
 
-  return NextResponse.json({ synced: connections.length, emailsScanned: emailConnections.length })
+  // Send weekly digests to users whose chosen day matches today
+  const todayDow = new Date().getDay() // 0=Sun … 6=Sat
+  const digestUsers = await prisma.userSettings.findMany({
+    where: { weeklyDigest: true, weeklyDigestDay: todayDow },
+    select: { clerkUserId: true },
+  })
+  await Promise.allSettled(digestUsers.map((u) => sendWeeklyDigest(u.clerkUserId)))
+
+  return NextResponse.json({
+    synced: connections.length,
+    emailsScanned: emailConnections.length,
+    digestsSent: digestUsers.length,
+  })
 }
 
 async function checkBudgetAlerts(ownerId: string) {

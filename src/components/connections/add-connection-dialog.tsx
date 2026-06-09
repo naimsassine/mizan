@@ -13,37 +13,82 @@ const providers = [
   {
     value: "openai",
     label: "OpenAI",
-    hint: "Find your API key at platform.openai.com/api-keys",
+    hint: "API Keys page → Settings → API Keys",
+    keyUrl: "https://platform.openai.com/api-keys",
     keyPrefix: "sk-",
     placeholder: "sk-...",
   },
   {
     value: "anthropic",
     label: "Anthropic",
-    hint: "Find your API key at console.anthropic.com",
+    hint: "Console → Settings → API Keys",
+    keyUrl: "https://console.anthropic.com/settings/keys",
     keyPrefix: "sk-ant-",
     placeholder: "sk-ant-...",
   },
   {
     value: "gemini",
     label: "Google Gemini",
-    hint: "Find your AI Studio API key at aistudio.google.com",
+    hint: "AI Studio → Get API key",
+    keyUrl: "https://aistudio.google.com/app/apikey",
     keyPrefix: "AIza",
     placeholder: "AIza...",
   },
   {
     value: "bedrock",
     label: "AWS Bedrock",
-    hint: "IAM user with Cost Explorer read permissions (AWSBillingReadOnlyAccess)",
+    hint: "IAM Console → Create user with AWSBillingReadOnlyAccess policy",
+    keyUrl: "https://console.aws.amazon.com/iam/home#/users",
     keyPrefix: "AKIA",
-    placeholder: null, // uses multi-field form
+    placeholder: null,
   },
   {
     value: "groq",
     label: "Groq",
-    hint: "Find your API key at console.groq.com/keys — requires Enterprise plan for Prometheus metrics",
+    hint: "GroqCloud Console → API Keys — Enterprise plan required for usage metrics",
+    keyUrl: "https://console.groq.com/keys",
     keyPrefix: "gsk_",
     placeholder: "gsk_...",
+  },
+  {
+    value: "mistral",
+    label: "Mistral AI",
+    hint: "La Plateforme → Workspace → API Keys",
+    keyUrl: "https://console.mistral.ai/api-keys",
+    keyPrefix: "",
+    placeholder: "...",
+  },
+  {
+    value: "grok",
+    label: "xAI / Grok",
+    hint: "xAI Console → API Keys",
+    keyUrl: "https://console.x.ai",
+    keyPrefix: "xai-",
+    placeholder: "xai-...",
+  },
+  {
+    value: "kimi",
+    label: "Kimi (Moonshot AI)",
+    hint: "Moonshot Platform → API Keys",
+    keyUrl: "https://platform.moonshot.cn/console/api-keys",
+    keyPrefix: "sk-",
+    placeholder: "sk-...",
+  },
+  {
+    value: "openrouter",
+    label: "OpenRouter",
+    hint: "Keys → Create key",
+    keyUrl: "https://openrouter.ai/keys",
+    keyPrefix: "sk-or-",
+    placeholder: "sk-or-...",
+  },
+  {
+    value: "litellm",
+    label: "LiteLLM Proxy",
+    hint: "Self-hosted LiteLLM — needs your proxy URL and master key",
+    keyUrl: "https://docs.litellm.ai/docs/proxy/quick_start",
+    keyPrefix: "",
+    placeholder: null, // uses multi-field form
   },
 ]
 
@@ -54,11 +99,10 @@ const AWS_REGIONS = [
 ]
 
 function validateKey(providerValue: string, key: string): string | null {
+  if (key.length < 8) return "Key looks too short"
   const p = providers.find((x) => x.value === providerValue)
   if (!p || !p.keyPrefix) return null
-  if (!key.startsWith(p.keyPrefix)) {
-    return `Key should start with "${p.keyPrefix}"`
-  }
+  if (!key.startsWith(p.keyPrefix)) return `Key should start with "${p.keyPrefix}"`
   return null
 }
 
@@ -66,16 +110,20 @@ export function AddConnectionDialog() {
   const [open, setOpen] = useState(false)
   const [provider, setProvider] = useState<string>("")
   const [apiKey, setApiKey] = useState("")
-  // Bedrock-specific fields
+  // Bedrock-specific
   const [awsAccessKeyId, setAwsAccessKeyId] = useState("")
   const [awsSecretKey, setAwsSecretKey] = useState("")
   const [awsRegion, setAwsRegion] = useState("us-east-1")
+  // LiteLLM-specific
+  const [litellmUrl, setLitellmUrl] = useState("")
 
   const [error, setError] = useState("")
   const [isPending, startTransition] = useTransition()
 
   const selectedProvider = providers.find((p) => p.value === provider)
   const isBedrock = provider === "bedrock"
+  const isLiteLLM = provider === "litellm"
+  const isMultiField = isBedrock || isLiteLLM
 
   function reset() {
     setProvider("")
@@ -83,6 +131,7 @@ export function AddConnectionDialog() {
     setAwsAccessKeyId("")
     setAwsSecretKey("")
     setAwsRegion("us-east-1")
+    setLitellmUrl("")
     setError("")
   }
 
@@ -96,6 +145,12 @@ export function AddConnectionDialog() {
         setError('Access Key ID should start with "AKIA"')
         return
       }
+    } else if (isLiteLLM) {
+      if (!litellmUrl.trim() || !apiKey.trim()) return
+      try { new URL(litellmUrl.trim()) } catch {
+        setError("Enter a valid URL (e.g. https://llm.yourcompany.com)")
+        return
+      }
     } else {
       if (!provider || !apiKey.trim()) return
       const keyErr = validateKey(provider, apiKey.trim())
@@ -103,11 +158,19 @@ export function AddConnectionDialog() {
     }
 
     startTransition(async () => {
-      const credJson = isBedrock
-        ? JSON.stringify({ accessKeyId: awsAccessKeyId.trim(), secretAccessKey: awsSecretKey.trim(), region: awsRegion })
-        : apiKey.trim()
+      let credJson: string
+      let isJsonCreds = false
+      if (isBedrock) {
+        credJson = JSON.stringify({ accessKeyId: awsAccessKeyId.trim(), secretAccessKey: awsSecretKey.trim(), region: awsRegion })
+        isJsonCreds = true
+      } else if (isLiteLLM) {
+        credJson = JSON.stringify({ baseUrl: litellmUrl.trim(), apiKey: apiKey.trim() })
+        isJsonCreds = true
+      } else {
+        credJson = apiKey.trim()
+      }
 
-      const result = await createConnection(provider, credJson, isBedrock)
+      const result = await createConnection(provider, credJson, isJsonCreds)
       if (result?.error) {
         setError(result.error)
       } else {
@@ -119,7 +182,9 @@ export function AddConnectionDialog() {
 
   const canSubmit = isBedrock
     ? awsAccessKeyId.trim() && awsSecretKey.trim() && !isPending
-    : provider && apiKey.trim() && !isPending
+    : isLiteLLM
+      ? litellmUrl.trim() && apiKey.trim() && !isPending
+      : provider && apiKey.trim() && !isPending
 
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset() }}>
@@ -140,7 +205,7 @@ export function AddConnectionDialog() {
         <form onSubmit={handleSubmit} className="mt-2 space-y-4">
           <div className="space-y-1.5">
             <Label className="text-xs text-zinc-600">Provider</Label>
-            <Select value={provider} onValueChange={(v) => { if (v !== null) { setProvider(v); setApiKey(""); setError("") } }}>
+            <Select value={provider} onValueChange={(v) => { if (v !== null) { setProvider(v); setApiKey(""); setLitellmUrl(""); setError("") } }}>
               <SelectTrigger className="h-9 text-sm">
                 <SelectValue placeholder="Select a provider" />
               </SelectTrigger>
@@ -153,6 +218,18 @@ export function AddConnectionDialog() {
               </SelectContent>
             </Select>
           </div>
+
+          {(provider === "openrouter" || provider === "litellm") && (
+            <div className="rounded-lg border border-amber-100 bg-amber-50 p-3">
+              <p className="text-xs font-medium text-amber-800 mb-1">Watch out for double-counting</p>
+              <p className="text-[11px] text-amber-700 leading-relaxed">
+                {provider === "openrouter"
+                  ? "OpenRouter tracks all requests it routes — including ones to OpenAI, Anthropic, and others. If you also have those providers connected directly in Mizan, their usage APIs will report the same requests again."
+                  : "LiteLLM tracks all requests going through your proxy — which may include calls to OpenAI, Anthropic, and others. If those providers are also connected directly in Mizan, their usage APIs will report the same requests again."}
+                {" "}Only connect the underlying providers directly if they have spend that doesn&apos;t go through {provider === "openrouter" ? "OpenRouter" : "LiteLLM"}.
+              </p>
+            </div>
+          )}
 
           {provider === "gemini" && (
             <div className="space-y-3">
@@ -187,12 +264,25 @@ export function AddConnectionDialog() {
                   onChange={(e) => { setApiKey(e.target.value); setError("") }}
                   className="h-9 font-mono text-sm"
                 />
-                <p className="text-[11px] text-zinc-400">{selectedProvider?.hint}</p>
+                <p className="text-[11px] text-zinc-400 flex items-center gap-1">
+                  {selectedProvider?.hint}
+                  {selectedProvider?.keyUrl && (
+                    <a
+                      href={selectedProvider.keyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-0.5 text-zinc-500 hover:text-zinc-800 transition-colors underline underline-offset-2"
+                    >
+                      Open
+                      <ExternalLink className="h-2.5 w-2.5" />
+                    </a>
+                  )}
+                </p>
               </div>
             </div>
           )}
 
-          {provider && !isBedrock && provider !== "gemini" && (
+          {provider && !isMultiField && provider !== "gemini" && (
             <div className="space-y-1.5">
               <Label className="text-xs text-zinc-600">API Key</Label>
               <Input
@@ -203,7 +293,20 @@ export function AddConnectionDialog() {
                 className="h-9 font-mono text-sm"
               />
               {selectedProvider && (
-                <p className="text-[11px] text-zinc-400">{selectedProvider.hint}</p>
+                <p className="text-[11px] text-zinc-400 flex items-center gap-1">
+                  {selectedProvider.hint}
+                  {selectedProvider.keyUrl && (
+                    <a
+                      href={selectedProvider.keyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-0.5 text-zinc-500 hover:text-zinc-800 transition-colors underline underline-offset-2"
+                    >
+                      Open
+                      <ExternalLink className="h-2.5 w-2.5" />
+                    </a>
+                  )}
+                </p>
               )}
             </div>
           )}
@@ -240,7 +343,60 @@ export function AddConnectionDialog() {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-[11px] text-zinc-400">{selectedProvider?.hint}</p>
+                <p className="text-[11px] text-zinc-400 flex items-center gap-1">
+                  {selectedProvider?.hint}
+                  {selectedProvider?.keyUrl && (
+                    <a
+                      href={selectedProvider.keyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-0.5 text-zinc-500 hover:text-zinc-800 transition-colors underline underline-offset-2"
+                    >
+                      Open
+                      <ExternalLink className="h-2.5 w-2.5" />
+                    </a>
+                  )}
+                </p>
+              </div>
+            </>
+          )}
+
+          {isLiteLLM && (
+            <>
+              <div className="rounded-lg border border-zinc-100 bg-zinc-50 p-3">
+                <p className="text-[11px] text-zinc-500 leading-relaxed">
+                  LiteLLM is self-hosted — enter your proxy&apos;s base URL and the master key
+                  (or a virtual key with <code className="font-mono text-[10px]">/spend/logs</code> read access).
+                  {" "}
+                  <a
+                    href="https://docs.litellm.ai/docs/proxy/cost_tracking"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-0.5 text-zinc-500 hover:text-zinc-800 underline underline-offset-2 transition-colors"
+                  >
+                    Docs <ExternalLink className="h-2.5 w-2.5" />
+                  </a>
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-zinc-600">Proxy URL</Label>
+                <Input
+                  type="url"
+                  placeholder="https://llm.yourcompany.com"
+                  value={litellmUrl}
+                  onChange={(e) => { setLitellmUrl(e.target.value); setError("") }}
+                  className="h-9 font-mono text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-zinc-600">Master / Virtual Key</Label>
+                <Input
+                  type="password"
+                  placeholder="sk-..."
+                  value={apiKey}
+                  onChange={(e) => { setApiKey(e.target.value); setError("") }}
+                  className="h-9 font-mono text-sm"
+                />
               </div>
             </>
           )}

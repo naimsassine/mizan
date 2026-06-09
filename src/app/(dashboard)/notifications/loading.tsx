@@ -12,7 +12,7 @@ function SkeletonRow() {
   )
 }
 
-export default function AlertsLoading() {
+export default function NotificationsLoading() {
   return (
     <div className="mx-auto max-w-3xl px-8 py-8">
       <div className="mb-8 flex items-start justify-between">

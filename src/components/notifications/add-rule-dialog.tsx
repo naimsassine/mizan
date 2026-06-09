@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { createBudgetRule } from "@/app/(dashboard)/alerts/actions"
+import { createBudgetRule } from "@/app/(dashboard)/notifications/actions"
 import { useRouter } from "next/navigation"
 
 export function AddRuleDialog() {
@@ -68,6 +68,12 @@ export function AddRuleDialog() {
                 <SelectItem value="anthropic" className="text-sm">Anthropic</SelectItem>
                 <SelectItem value="gemini" className="text-sm">Google Gemini</SelectItem>
                 <SelectItem value="bedrock" className="text-sm">AWS Bedrock</SelectItem>
+                <SelectItem value="groq" className="text-sm">Groq</SelectItem>
+                <SelectItem value="mistral" className="text-sm">Mistral AI</SelectItem>
+                <SelectItem value="grok" className="text-sm">xAI / Grok</SelectItem>
+                <SelectItem value="kimi" className="text-sm">Kimi (Moonshot AI)</SelectItem>
+                <SelectItem value="openrouter" className="text-sm">OpenRouter</SelectItem>
+                <SelectItem value="litellm" className="text-sm">LiteLLM</SelectItem>
               </SelectContent>
             </Select>
           </div>

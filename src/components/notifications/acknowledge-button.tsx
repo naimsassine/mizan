@@ -2,7 +2,7 @@
 
 import { useTransition } from "react"
 import { CheckCheck, Loader2 } from "lucide-react"
-import { acknowledgeAlert } from "@/app/(dashboard)/alerts/actions"
+import { acknowledgeAlert } from "@/app/(dashboard)/notifications/actions"
 import { useRouter } from "next/navigation"
 
 export function AcknowledgeButton({ id }: { id: string }) {

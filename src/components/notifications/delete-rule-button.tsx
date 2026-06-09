@@ -2,7 +2,7 @@
 
 import { useTransition } from "react"
 import { Trash2, Loader2 } from "lucide-react"
-import { deleteBudgetRule } from "@/app/(dashboard)/alerts/actions"
+import { deleteBudgetRule } from "@/app/(dashboard)/notifications/actions"
 import { useRouter } from "next/navigation"
 
 export function DeleteRuleButton({ id }: { id: string }) {

@@ -12,7 +12,7 @@ const navItems = [
   { href: "/usage", icon: BarChart2, label: "Usage" },
   { href: "/connections", icon: Plug, label: "Connections" },
   { href: "/receipts", icon: Receipt, label: "Receipts" },
-  { href: "/alerts", icon: Bell, label: "Alerts" },
+  { href: "/notifications", icon: Bell, label: "Notifications" },
 ]
 
 const bottomItems = [
@@ -54,7 +54,7 @@ export function Sidebar({ unackAlerts = 0 }: { unackAlerts?: number }) {
                 }
               >
                 <Icon className="h-4 w-4" strokeWidth={1.5} />
-                {href === "/alerts" && unackAlerts > 0 && (
+                {href === "/notifications" && unackAlerts > 0 && (
                   <span className="absolute right-1 top-1 flex h-2 w-2 rounded-full bg-red-500" />
                 )}
                 <span className="sr-only">{label}</span>

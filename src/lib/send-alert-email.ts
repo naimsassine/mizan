@@ -7,6 +7,12 @@ const providerLabel: Record<string, string> = {
   anthropic: "Anthropic",
   gemini: "Google Gemini",
   bedrock: "AWS Bedrock",
+  groq: "Groq",
+  mistral: "Mistral AI",
+  grok: "xAI / Grok",
+  kimi: "Kimi (Moonshot AI)",
+  openrouter: "OpenRouter",
+  litellm: "LiteLLM",
 }
 
 function buildEmailHtml(params: {
@@ -46,10 +52,10 @@ function buildEmailHtml(params: {
               <td align="right" style="padding:14px 16px;font-family:monospace;font-size:15px;font-weight:600;color:#a1a1aa">$${limitUsd.toFixed(2)}</td>
             </tr>
           </table>
-          <a href="${appUrl}/alerts" style="display:inline-block;background:#18181b;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500">View in Mizan &#8594;</a>
+          <a href="${appUrl}/notifications" style="display:inline-block;background:#18181b;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500">View in Mizan &#8594;</a>
         </td></tr>
         <tr><td style="padding:16px 32px;border-top:1px solid #f4f4f5">
-          <p style="margin:0;font-size:11px;color:#a1a1aa">You&#39;re receiving this because budget notifications are enabled. <a href="${appUrl}/settings" style="color:#71717a;text-decoration:underline">Manage preferences</a></p>
+          <p style="margin:0;font-size:11px;color:#a1a1aa">You&#39;re receiving this because cost alerts are enabled. <a href="${appUrl}/notifications" style="color:#71717a;text-decoration:underline">Manage notifications</a></p>
         </td></tr>
       </table>
     </td></tr>

@@ -11,21 +11,26 @@ import { syncAnthropic, syncAnthropicIncremental } from "@/lib/sync/anthropic"
 import { syncGemini, syncGeminiIncremental } from "@/lib/sync/gemini"
 import { syncBedrock, syncBedrockIncremental } from "@/lib/sync/bedrock"
 import { syncGroq, syncGroqIncremental } from "@/lib/sync/groq"
+import { syncMistral, syncMistralIncremental } from "@/lib/sync/mistral"
+import { syncGrok, syncGrokIncremental } from "@/lib/sync/grok"
+import { syncKimi, syncKimiIncremental } from "@/lib/sync/kimi"
+import { syncOpenRouter, syncOpenRouterIncremental } from "@/lib/sync/openrouter"
+import { syncLiteLLM, syncLiteLLMIncremental } from "@/lib/sync/litellm"
 
-// isBedrock=true means credValue is already a JSON string of { accessKeyId, secretAccessKey, region }
+// isJsonCreds=true means credValue is already a JSON string (used for Bedrock and LiteLLM)
 // Otherwise credValue is a plain API key string
-export async function createConnection(provider: string, credValue: string, isBedrock = false) {
+export async function createConnection(provider: string, credValue: string, isJsonCreds = false) {
   const { userId, orgId } = await auth()
   if (!userId) return { error: "Unauthorized" }
 
-  const validProviders = ["openai", "anthropic", "gemini", "bedrock", "groq"]
+  const validProviders = ["openai", "anthropic", "gemini", "bedrock", "groq", "mistral", "grok", "kimi", "openrouter", "litellm"]
   if (!validProviders.includes(provider)) return { error: "Invalid provider" }
   if (!credValue.trim()) return { error: "Credentials are required" }
 
   const ownerId = orgId ?? userId
   const ownerType = orgId ? "org" : "user"
 
-  const credJson = isBedrock ? credValue : JSON.stringify({ apiKey: credValue })
+  const credJson = isJsonCreds ? credValue : JSON.stringify({ apiKey: credValue })
 
   let connectionId: string
   try {
@@ -33,7 +38,7 @@ export async function createConnection(provider: string, credValue: string, isBe
       data: {
         ownerId,
         ownerType: ownerType as "user" | "org",
-        provider: provider as "openai" | "anthropic" | "gemini" | "bedrock" | "groq",
+        provider: provider as "openai" | "anthropic" | "gemini" | "bedrock" | "groq" | "mistral" | "grok" | "kimi" | "openrouter" | "litellm",
         encCredentials: encrypt(credJson),
         backfillFrom: startOfDay(subMonths(new Date(), 3)),
         backfillStatus: "pending",
@@ -50,6 +55,11 @@ export async function createConnection(provider: string, credValue: string, isBe
     else if (provider === "gemini") await syncGemini(connectionId)
     else if (provider === "bedrock") await syncBedrock(connectionId)
     else if (provider === "groq") await syncGroq(connectionId)
+    else if (provider === "mistral") await syncMistral(connectionId)
+    else if (provider === "grok") await syncGrok(connectionId)
+    else if (provider === "kimi") await syncKimi(connectionId)
+    else if (provider === "openrouter") await syncOpenRouter(connectionId)
+    else if (provider === "litellm") await syncLiteLLM(connectionId)
   })
 
   revalidatePath("/connections")
@@ -73,6 +83,11 @@ export async function triggerSync(connectionId: string) {
     else if (connection.provider === "gemini") await syncGeminiIncremental(connectionId)
     else if (connection.provider === "bedrock") await syncBedrockIncremental(connectionId)
     else if (connection.provider === "groq") await syncGroqIncremental(connectionId)
+    else if (connection.provider === "mistral") await syncMistralIncremental(connectionId)
+    else if (connection.provider === "grok") await syncGrokIncremental(connectionId)
+    else if (connection.provider === "kimi") await syncKimiIncremental(connectionId)
+    else if (connection.provider === "openrouter") await syncOpenRouterIncremental(connectionId)
+    else if (connection.provider === "litellm") await syncLiteLLMIncremental(connectionId)
   })
 
   revalidatePath("/connections")

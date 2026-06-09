@@ -27,13 +27,17 @@ const PROVIDERS = [
   { value: "anthropic", label: "Anthropic" },
   { value: "google", label: "Google" },
   { value: "aws", label: "AWS" },
-  { value: "mistral", label: "Mistral" },
+  { value: "mistral", label: "Mistral AI" },
+  { value: "grok", label: "xAI / Grok" },
+  { value: "kimi", label: "Kimi (Moonshot AI)" },
   { value: "cohere", label: "Cohere" },
   { value: "perplexity", label: "Perplexity" },
   { value: "cursor", label: "Cursor" },
   { value: "together", label: "Together AI" },
   { value: "replicate", label: "Replicate" },
-  { value: "other", label: "Other" },
+  { value: "openrouter", label: "OpenRouter" },
+  { value: "litellm",    label: "LiteLLM" },
+  { value: "other",      label: "Other" },
 ]
 
 interface ReceiptData {

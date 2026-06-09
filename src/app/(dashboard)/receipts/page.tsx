@@ -9,6 +9,7 @@ import { ScanEmailButton } from "@/components/receipts/scan-email-button"
 import { DisconnectEmailButton } from "@/components/receipts/disconnect-email-button"
 import { ReceiptFormDialog } from "@/components/receipts/receipt-form-dialog"
 import { UploadReceiptButton } from "@/components/receipts/upload-receipt-button"
+import { ReclassifyBadge } from "@/components/receipts/reclassify-badge"
 
 const providerColors: Record<string, string> = {
   openai: "bg-emerald-50 text-emerald-700 border-emerald-100",
@@ -20,6 +21,11 @@ const providerColors: Record<string, string> = {
   perplexity: "bg-cyan-50 text-cyan-700 border-cyan-100",
   cursor: "bg-pink-50 text-pink-700 border-pink-100",
   groq: "bg-red-50 text-red-700 border-red-100",
+  grok: "bg-slate-50 text-slate-700 border-slate-200",
+  kimi: "bg-indigo-50 text-indigo-700 border-indigo-100",
+  xai: "bg-slate-50 text-slate-700 border-slate-200",
+  openrouter: "bg-rose-50 text-rose-700 border-rose-100",
+  litellm: "bg-lime-50 text-lime-700 border-lime-100",
 }
 
 export default async function ReceiptsPage({
@@ -163,16 +169,7 @@ export default async function ReceiptsPage({
                           {r.provider}
                         </Badge>
                       )}
-                      <Badge
-                        variant="outline"
-                        className={`h-5 px-1.5 py-0 text-[10px] ${
-                          r.usageType === "subscription"
-                            ? "bg-violet-50 text-violet-600 border-violet-100"
-                            : "bg-zinc-50 text-zinc-500 border-zinc-100"
-                        }`}
-                      >
-                        {r.usageType === "subscription" ? "subscription" : "api"}
-                      </Badge>
+                      <ReclassifyBadge id={r.id} usageType={r.usageType} />
                       <span className="font-mono text-xs font-semibold text-zinc-900">
                         ${Number(r.amountUsd).toFixed(2)}
                       </span>

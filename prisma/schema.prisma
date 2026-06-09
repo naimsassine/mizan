@@ -18,6 +18,11 @@ enum Provider {
   gemini
   bedrock
   groq
+  mistral
+  grok
+  kimi
+  openrouter
+  litellm
 }
 
 enum UsageType {
@@ -183,6 +188,9 @@ model UserSettings {
   clerkUserId       String  @id @map("clerk_user_id")
   backfillMonths    Int     @default(3) @map("backfill_months")
   notificationEmail Boolean @default(true) @map("notification_email")
+  weeklyDigest      Boolean @default(false) @map("weekly_digest")
+  weeklyDigestDay   Int     @default(1) @map("weekly_digest_day") // 0=Sun 1=Mon … 6=Sat
+  weeklyDigestProviders String @default("") @map("weekly_digest_providers") // comma-separated, empty = all
 
   @@map("user_settings")
 }
