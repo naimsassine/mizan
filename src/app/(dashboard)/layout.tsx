@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { Sidebar } from "@/components/layout/sidebar"
+import { MobileNav } from "@/components/layout/mobile-nav"
 
 export const dynamic = "force-dynamic"
 
@@ -16,8 +17,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex h-full">
+      {/* Desktop sidebar — hidden on mobile */}
       <Sidebar unackAlerts={unackAlerts} />
-      <main className="flex-1 pl-14 overflow-auto bg-zinc-50/60">
+
+      {/* Mobile top bar + drawer — hidden on md+ */}
+      <MobileNav unackAlerts={unackAlerts} />
+
+      <main className="flex-1 md:pl-14 pt-14 md:pt-0 overflow-auto bg-zinc-50/60">
         {children}
       </main>
     </div>

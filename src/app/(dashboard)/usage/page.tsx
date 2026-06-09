@@ -133,9 +133,9 @@ export default async function UsagePage({
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-8 py-8">
+    <div className="mx-auto max-w-5xl px-4 md:px-8 py-6 md:py-8">
       {/* Header */}
-      <div className="mb-6 flex items-start justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-[1.6rem] font-semibold leading-tight tracking-tight text-zinc-900">
             Usage
@@ -149,7 +149,7 @@ export default async function UsagePage({
             className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-500 transition-all duration-150 hover:border-zinc-300 hover:text-zinc-900"
           >
             <Download className="h-3 w-3" />
-            Export CSV
+            <span className="hidden sm:inline">Export CSV</span>
           </a>
           {/* Range selector */}
           <div className="flex items-center gap-0.5 rounded-lg border border-zinc-200 bg-white p-1">
@@ -183,12 +183,23 @@ export default async function UsagePage({
             )}
           >
             {p === "all" ? "All providers" : providerLabel[p]}
+            {providerFilter === p && p !== "all" && (
+              <span className="ml-1.5 opacity-70">×</span>
+            )}
           </Link>
         ))}
+        {(providerFilter !== "all" || days !== 30) && (
+          <Link
+            href="/usage"
+            className="ml-1 text-xs text-zinc-400 hover:text-zinc-700 underline decoration-dotted transition-colors"
+          >
+            Clear filters
+          </Link>
+        )}
       </div>
 
       {/* Summary cards */}
-      <div className="mb-6 grid grid-cols-3 gap-4">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card className="rounded-xl border-zinc-100 bg-white shadow-none transition-shadow duration-200 hover:shadow-sm">
           <CardContent className="p-5">
             <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">Total spend</p>

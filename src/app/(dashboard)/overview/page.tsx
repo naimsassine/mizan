@@ -204,7 +204,7 @@ export default async function OverviewPage({
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-8 py-8">
+    <div className="mx-auto max-w-5xl px-4 md:px-8 py-6 md:py-8">
       {/* Header */}
       <div className="mb-8 flex items-end justify-between">
         <div>

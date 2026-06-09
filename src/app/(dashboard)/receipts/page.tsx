@@ -50,7 +50,7 @@ export default async function ReceiptsPage({
   ])
 
   return (
-    <div className="mx-auto max-w-3xl px-8 py-8">
+    <div className="mx-auto max-w-3xl px-4 md:px-8 py-6 md:py-8">
       <div className="mb-8 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Receipts</h1>

@@ -30,7 +30,7 @@ export default async function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-8 py-8">
+    <div className="mx-auto max-w-2xl px-4 md:px-8 py-6 md:py-8">
       <div className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Settings</h1>
         <p className="mt-1 text-sm text-zinc-500">Manage your preferences and sync configuration.</p>

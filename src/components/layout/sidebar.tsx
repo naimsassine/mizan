@@ -22,7 +22,7 @@ export function Sidebar({ unackAlerts = 0 }: { unackAlerts?: number }) {
   const pathname = usePathname()
 
   return (
-    <aside className="group/sidebar fixed inset-y-0 left-0 z-20 flex w-14 hover:w-52 shrink-0 flex-col border-r border-zinc-100 bg-white transition-[width] duration-200 overflow-hidden">
+    <aside className="group/sidebar fixed inset-y-0 left-0 z-20 hidden md:flex w-14 hover:w-52 shrink-0 flex-col border-r border-zinc-100 bg-white transition-[width] duration-200 overflow-hidden">
       {/* Logo */}
       <div className="flex h-14 shrink-0 items-center border-b border-zinc-100 px-3.5">
         <Link
@@ -87,21 +87,6 @@ export function Sidebar({ unackAlerts = 0 }: { unackAlerts?: number }) {
 
         <div className="flex h-9 items-center gap-3 px-2.5">
           <div className="shrink-0">
-            <UserButton
-              appearance={{
-                elements: {
-                  avatarBox: "h-6 w-6",
-                },
-              }}
-            />
-          </div>
-          <span className="text-xs text-zinc-400 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-100 delay-75 whitespace-nowrap truncate">
-            Account
-          </span>
-        </div>
-
-        <div className="flex h-9 items-center gap-3 px-2.5">
-          <div className="shrink-0">
             <OrganizationSwitcher
               hidePersonal
               appearance={{
@@ -118,6 +103,21 @@ export function Sidebar({ unackAlerts = 0 }: { unackAlerts?: number }) {
           </div>
           <span className="text-xs text-zinc-400 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-100 delay-75 whitespace-nowrap truncate">
             Switch org
+          </span>
+        </div>
+
+        <div className="flex h-9 items-center gap-3 px-2.5">
+          <div className="shrink-0">
+            <UserButton
+              appearance={{
+                elements: {
+                  avatarBox: "h-6 w-6",
+                },
+              }}
+            />
+          </div>
+          <span className="text-xs text-zinc-400 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-100 delay-75 whitespace-nowrap truncate">
+            Account
           </span>
         </div>
       </div>

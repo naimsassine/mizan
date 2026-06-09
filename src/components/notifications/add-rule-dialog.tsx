@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Plus, Loader2 } from "lucide-react"
+import { Plus, Loader2, Lightbulb } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,7 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { createBudgetRule } from "@/app/(dashboard)/notifications/actions"
 import { useRouter } from "next/navigation"
 
-export function AddRuleDialog() {
+interface SpendSuggestions {
+  monthly: number
+  weekly: number
+  daily: number
+}
+
+export function AddRuleDialog({ spendSuggestions }: { spendSuggestions?: SpendSuggestions }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [provider, setProvider] = useState("all")
@@ -42,6 +48,17 @@ export function AddRuleDialog() {
       }
     })
   }
+
+  const suggestion = spendSuggestions
+    ? period === "monthly"
+      ? spendSuggestions.monthly
+      : period === "weekly"
+        ? spendSuggestions.weekly
+        : spendSuggestions.daily
+    : null
+
+  const suggestedLimit =
+    suggestion && suggestion > 0 ? Math.ceil(suggestion * 1.25 * 100) / 100 : null
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -106,6 +123,25 @@ export function AddRuleDialog() {
               />
             </div>
           </div>
+
+          {/* Suggested limit based on recent spend */}
+          {suggestedLimit !== null && !limit && (
+            <button
+              type="button"
+              onClick={() => setLimit(suggestedLimit.toFixed(2))}
+              className="flex w-full items-center gap-2 rounded-lg border border-zinc-100 bg-zinc-50 px-3 py-2.5 text-left transition-colors hover:bg-zinc-100"
+            >
+              <Lightbulb className="h-3.5 w-3.5 shrink-0 text-zinc-400" strokeWidth={1.5} />
+              <span className="text-xs text-zinc-500">
+                Suggested:{" "}
+                <span className="font-medium text-zinc-900">${suggestedLimit.toFixed(2)}</span>
+                <span className="ml-1 text-zinc-400">
+                  (125% of your recent {period} spend of ${suggestion!.toFixed(2)})
+                </span>
+              </span>
+            </button>
+          )}
+
           {error && <p className="text-xs text-red-500">{error}</p>}
           <div className="flex justify-end gap-2 pt-1">
             <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)} className="h-8 text-xs">
