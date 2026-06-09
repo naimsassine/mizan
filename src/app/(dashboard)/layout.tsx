@@ -23,7 +23,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* Mobile top bar + drawer — hidden on md+ */}
       <MobileNav unackAlerts={unackAlerts} />
 
-      <main className="flex-1 md:pl-14 pt-14 md:pt-0 overflow-auto bg-zinc-50/60">
+      <main className="flex-1 md:pl-14 pt-14 md:pt-0 overflow-auto bg-zinc-50/60 dark:bg-zinc-950">
         {children}
       </main>
     </div>

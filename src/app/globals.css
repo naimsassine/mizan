@@ -118,6 +118,58 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* ─── Dark-mode overrides for hardcoded zinc/white utility classes ───────────
+   Pages use explicit zinc/white classes instead of semantic CSS-var classes.
+   These rules bridge the gap without rewriting every page.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Surfaces */
+.dark .bg-white                    { background-color: var(--card); }
+.dark .bg-zinc-50                  { background-color: oklch(0.18 0 0); }
+.dark .bg-zinc-100                 { background-color: oklch(0.22 0 0); }
+.dark .bg-zinc-50\/60              { background-color: oklch(0.14 0 0 / 0.6); }
+.dark .bg-zinc-50\/70              { background-color: oklch(0.18 0 0 / 0.7); }
+
+/* Active / selected pill (inverted: black in light → near-white in dark) */
+.dark .bg-zinc-900                 { background-color: oklch(0.87 0 0); }
+.dark .border-zinc-900             { border-color: oklch(0.87 0 0); }
+.dark .text-white                  { color: oklch(0.145 0 0); }
+
+/* Borders */
+.dark .border-zinc-100             { border-color: oklch(1 0 0 / 8%); }
+.dark .border-zinc-200             { border-color: oklch(1 0 0 / 12%); }
+
+/* Text */
+.dark .text-zinc-900               { color: oklch(0.985 0 0); }
+.dark .text-zinc-800               { color: oklch(0.92 0 0); }
+.dark .text-zinc-700               { color: oklch(0.87 0 0); }
+.dark .text-zinc-600               { color: oklch(0.75 0 0); }
+.dark .text-zinc-500               { color: oklch(0.65 0 0); }
+.dark .text-zinc-400               { color: oklch(0.556 0 0); }
+.dark .text-zinc-300               { color: oklch(0.45 0 0); }
+
+/* Hovers */
+.dark .hover\:bg-zinc-100:hover    { background-color: oklch(0.25 0 0); }
+.dark .hover\:bg-zinc-50\/70:hover { background-color: oklch(0.22 0 0 / 0.7); }
+.dark .hover\:text-zinc-900:hover  { color: oklch(0.985 0 0); }
+.dark .hover\:border-zinc-300:hover{ border-color: oklch(1 0 0 / 18%); }
+.dark .hover\:border-zinc-400:hover{ border-color: oklch(1 0 0 / 24%); }
+.dark .hover\:shadow-sm:hover      { box-shadow: 0 1px 3px 0 oklch(0 0 0 / 0.4); }
+
+/* Divide lines */
+.dark .divide-zinc-50 > * + *      { border-color: oklch(1 0 0 / 6%); }
+.dark .divide-zinc-100 > * + *     { border-color: oklch(1 0 0 / 8%); }
+
+/* Shadcn badge variant overrides — semantic provider colors stay; neutrals flip */
+.dark .bg-zinc-50.text-zinc-600    { background-color: oklch(0.22 0 0); color: oklch(0.75 0 0); }
+.dark .bg-zinc-100.text-zinc-500   { background-color: oklch(0.25 0 0); color: oklch(0.65 0 0); }
+
+/* Chart tooltips */
+.dark .bg-white.shadow-md          { background-color: var(--card); }
+
+/* Sonner toast */
+.dark [data-sonner-toast]          { background-color: var(--card) !important; color: var(--card-foreground) !important; border-color: oklch(1 0 0 / 10%) !important; }
+
 @keyframes expand-bar {
   from { transform: scaleX(0); }
   to   { transform: scaleX(1); }

@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs"
 import { cn } from "@/lib/utils"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 const navItems = [
   { href: "/overview", icon: LayoutDashboard, label: "Overview" },
@@ -35,16 +36,16 @@ export function MobileNav({ unackAlerts = 0 }: { unackAlerts?: number }) {
   return (
     <>
       {/* Top bar — mobile only */}
-      <header className="fixed inset-x-0 top-0 z-20 flex h-14 items-center justify-between border-b border-zinc-100 bg-white px-4 md:hidden">
+      <header className="fixed inset-x-0 top-0 z-20 flex h-14 items-center justify-between border-b border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-4 md:hidden">
         <button
           onClick={() => setOpen(true)}
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-600 hover:bg-zinc-100 transition-colors"
+          className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           aria-label="Open menu"
         >
           <Menu className="h-5 w-5" strokeWidth={1.5} />
         </button>
 
-        <Link href="/overview" className="flex items-center gap-2 text-zinc-900">
+        <Link href="/overview" className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100">
           <Scale className="h-5 w-5" strokeWidth={1.5} />
           <span className="text-sm font-semibold tracking-tight">Mizan</span>
         </Link>
@@ -57,6 +58,7 @@ export function MobileNav({ unackAlerts = 0 }: { unackAlerts?: number }) {
               </span>
             </Link>
           )}
+          <ThemeToggle />
           <UserButton appearance={{ elements: { avatarBox: "h-7 w-7" } }} />
         </div>
       </header>
@@ -71,20 +73,20 @@ export function MobileNav({ unackAlerts = 0 }: { unackAlerts?: number }) {
           />
 
           {/* Drawer panel */}
-          <aside className="absolute inset-y-0 left-0 flex w-72 flex-col bg-white shadow-xl">
+          <aside className="absolute inset-y-0 left-0 flex w-72 flex-col bg-white dark:bg-zinc-950 shadow-xl">
             {/* Drawer header */}
-            <div className="flex h-14 items-center justify-between border-b border-zinc-100 px-4">
+            <div className="flex h-14 items-center justify-between border-b border-zinc-100 dark:border-zinc-800 px-4">
               <Link
                 href="/overview"
                 onClick={() => setOpen(false)}
-                className="flex items-center gap-2 text-zinc-900"
+                className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100"
               >
                 <Scale className="h-5 w-5" strokeWidth={1.5} />
                 <span className="text-sm font-semibold tracking-tight">Mizan</span>
               </Link>
               <button
                 onClick={() => setOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -102,8 +104,8 @@ export function MobileNav({ unackAlerts = 0 }: { unackAlerts?: number }) {
                     className={cn(
                       "relative flex h-10 items-center gap-3 rounded-lg px-3 transition-colors duration-150",
                       isActive
-                        ? "bg-zinc-900 text-white"
-                        : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                        ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                        : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100"
                     )}
                   >
                     <Icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
@@ -119,14 +121,14 @@ export function MobileNav({ unackAlerts = 0 }: { unackAlerts?: number }) {
             </nav>
 
             {/* Bottom: org switcher */}
-            <div className="border-t border-zinc-100 p-4 space-y-3">
+            <div className="border-t border-zinc-100 dark:border-zinc-800 p-4 space-y-3">
               <OrganizationSwitcher
                 hidePersonal
                 appearance={{
                   elements: {
                     rootBox: "w-full",
                     organizationSwitcherTrigger:
-                      "w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-100 transition-colors",
+                      "w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors",
                     organizationPreviewTextContainer: "text-sm",
                     avatarBox: "h-5 w-5",
                   },
