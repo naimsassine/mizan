@@ -4,6 +4,7 @@ import { ClerkProvider } from "@clerk/nextjs"
 import { shadcn } from "@clerk/ui/themes"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "sonner"
+import { ThemeProvider } from "@/components/theme-provider"
 import "./globals.css"
 
 const geist = Geist({
@@ -24,10 +25,16 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <ClerkProvider appearance={{ theme: shadcn }}>
-      <html lang="en" className={`${geist.variable} ${geistMono.variable} h-full`}>
+      <html
+        lang="en"
+        className={`${geist.variable} ${geistMono.variable} h-full`}
+        suppressHydrationWarning
+      >
         <body className="h-full font-sans antialiased">
-          <TooltipProvider>{children}</TooltipProvider>
-          <Toaster position="bottom-right" toastOptions={{ className: "text-xs font-sans" }} />
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+            <TooltipProvider>{children}</TooltipProvider>
+            <Toaster position="bottom-right" toastOptions={{ className: "text-xs font-sans" }} />
+          </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>
