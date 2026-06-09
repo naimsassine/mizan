@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 
 export default function OverviewLoading() {
   return (
-    <div className="mx-auto max-w-5xl px-8 py-8">
+    <div className="mx-auto max-w-5xl px-4 md:px-8 py-6 md:py-8">
       <div className="mb-8">
         <Skeleton className="h-8 w-60" />
         <Skeleton className="mt-2 h-4 w-48" />

@@ -1,12 +1,16 @@
 import { auth } from "@clerk/nextjs/server"
+import { subDays, startOfDay, format } from "date-fns"
 import { prisma } from "@/lib/prisma"
 import { AddConnectionDialog } from "@/components/connections/add-connection-dialog"
 import { DeleteConnectionButton } from "@/components/connections/delete-connection-button"
 import { SyncButton } from "@/components/connections/sync-button"
 import { SetGcpProjectButton } from "@/components/connections/set-gcp-project-button"
+import { ConnectionSparkline } from "@/components/connections/connection-sparkline"
+import { SyncPoller } from "@/components/connections/sync-poller"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatDistanceToNow } from "date-fns"
+import { AlertCircle, TrendingUp, TrendingDown, Minus } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const providerLabel: Record<string, string> = {
@@ -15,6 +19,11 @@ const providerLabel: Record<string, string> = {
   gemini: "Google Gemini / Vertex AI",
   bedrock: "AWS Bedrock",
   groq: "Groq",
+  mistral: "Mistral AI",
+  grok: "xAI / Grok",
+  kimi: "Kimi (Moonshot)",
+  openrouter: "OpenRouter",
+  litellm: "LiteLLM",
 }
 
 const providerAccent: Record<string, string> = {
@@ -23,12 +32,40 @@ const providerAccent: Record<string, string> = {
   gemini: "border-l-blue-400",
   bedrock: "border-l-yellow-400",
   groq: "border-l-red-400",
+  mistral: "border-l-purple-400",
+  grok: "border-l-slate-400",
+  kimi: "border-l-indigo-400",
+  openrouter: "border-l-rose-400",
+  litellm: "border-l-lime-400",
 }
 
 const statusVariant: Record<string, string> = {
   active: "bg-emerald-50 text-emerald-700 border-emerald-100",
   error: "bg-red-50 text-red-700 border-red-100",
   expired: "bg-zinc-100 text-zinc-500 border-zinc-200",
+}
+
+const errorHint: Record<string, string> = {
+  openai: "Check that your API key is valid and has the Usage read permission.",
+  anthropic: "Check that your API key is valid and has usage data access.",
+  gemini: "Re-authenticate with Google to refresh your OAuth token.",
+  bedrock: "Check that your IAM credentials have Cost Explorer read access.",
+  groq: "Check that your API key is valid.",
+  mistral: "Check that your API key is valid.",
+  grok: "Check that your xAI API key is valid.",
+  kimi: "Check that your Moonshot API key is valid.",
+  openrouter: "Check that your OpenRouter API key is valid.",
+  litellm: "Check your LiteLLM proxy URL and API key.",
+}
+
+function computeTrend(data: number[]): { pct: number; direction: "up" | "down" | "flat" } {
+  const first = (data[0] + data[1] + data[2]) / 3
+  const last = (data[4] + data[5] + data[6]) / 3
+  if (first === 0 && last === 0) return { pct: 0, direction: "flat" }
+  if (first === 0) return { pct: 100, direction: "up" }
+  const pct = ((last - first) / first) * 100
+  const direction = pct > 10 ? "up" : pct < -10 ? "down" : "flat"
+  return { pct: Math.abs(pct), direction }
 }
 
 export default async function ConnectionsPage({
@@ -40,22 +77,57 @@ export default async function ConnectionsPage({
   const ownerId = orgId ?? userId!
   const { error, gcp_conn } = await searchParams
 
-  const connections = await prisma.providerConnection.findMany({
-    where: { ownerId },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      provider: true,
-      status: true,
-      lastSyncedAt: true,
-      backfillStatus: true,
-      gcpProjectId: true,
-      createdAt: true,
-    },
-  })
+  const sevenDaysAgo = subDays(startOfDay(new Date()), 7)
+
+  // Build last-7-days date keys oldest → newest
+  const dayKeys = Array.from({ length: 7 }, (_, i) =>
+    format(subDays(startOfDay(new Date()), 6 - i), "yyyy-MM-dd"),
+  )
+
+  const [connections, sparklineRecords] = await Promise.all([
+    prisma.providerConnection.findMany({
+      where: { ownerId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        provider: true,
+        status: true,
+        lastSyncedAt: true,
+        backfillStatus: true,
+        gcpProjectId: true,
+        createdAt: true,
+      },
+    }),
+    prisma.usageRecord.groupBy({
+      by: ["connectionId", "date"],
+      where: { ownerId, date: { gte: sevenDaysAgo } },
+      _sum: { costUsd: true },
+      orderBy: [{ date: "asc" }],
+    }),
+  ])
+
+  // Build sparkline map: connectionId → Map<dateKey, cost>
+  const rawMap = new Map<string, Map<string, number>>()
+  for (const r of sparklineRecords) {
+    const key = format(r.date, "yyyy-MM-dd")
+    if (!rawMap.has(r.connectionId)) rawMap.set(r.connectionId, new Map())
+    rawMap.get(r.connectionId)!.set(key, Number(r._sum.costUsd ?? 0))
+  }
+
+  function getSparklineData(connId: string) {
+    const dayMap = rawMap.get(connId) ?? new Map<string, number>()
+    return dayKeys.map((d) => dayMap.get(d) ?? 0)
+  }
+
+  const syncingIds = connections
+    .filter((c) => c.backfillStatus === "pending" || c.backfillStatus === "in_progress")
+    .map((c) => c.id)
 
   return (
-    <div className="mx-auto max-w-3xl px-8 py-8">
+    <div className="mx-auto max-w-3xl px-4 md:px-8 py-6 md:py-8">
+      {/* SyncPoller: auto-refreshes while any connection is syncing */}
+      <SyncPoller syncingIds={syncingIds} />
+
       <div className="mb-8 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Connections</h1>
@@ -65,6 +137,21 @@ export default async function ConnectionsPage({
         </div>
         <AddConnectionDialog />
       </div>
+
+      {/* Syncing banner */}
+      {syncingIds.length > 0 && (
+        <div className="mb-4 flex items-center gap-2.5 rounded-lg border border-zinc-100 bg-white px-4 py-2.5">
+          <span className="relative flex h-2 w-2 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-zinc-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-zinc-500" />
+          </span>
+          <span className="text-xs text-zinc-500">
+            {syncingIds.length === 1 ? "1 connection" : `${syncingIds.length} connections`}{" "}
+            syncing — fetching historical data
+            <span className="ml-1.5 text-zinc-400">(auto-refreshing)</span>
+          </span>
+        </div>
+      )}
 
       {error && (
         <div className="mb-6 rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -94,33 +181,46 @@ export default async function ConnectionsPage({
       ) : (
         <div className="space-y-2">
           {connections.map((conn) => {
-            const needsGcpProject =
-              conn.provider === "gemini" && conn.gcpProjectId === "PENDING"
+            const needsGcpProject = conn.provider === "gemini" && conn.gcpProjectId === "PENDING"
+            const isError = conn.status === "error"
+            const isSyncing =
+              (conn.backfillStatus === "pending" || conn.backfillStatus === "in_progress") &&
+              !conn.lastSyncedAt
+
+            const sparkData = getSparklineData(conn.id)
+            const total7d = sparkData.reduce((a, b) => a + b, 0)
+            const { pct, direction } = computeTrend(sparkData)
+            const has7dData = total7d > 0
 
             return (
               <Card
                 key={conn.id}
                 className={cn(
                   "rounded-xl border-zinc-100 bg-white shadow-none border-l-2 transition-shadow duration-200 hover:shadow-sm",
-                  providerAccent[conn.provider] ?? "border-l-zinc-200",
+                  isError
+                    ? "border-l-red-400"
+                    : providerAccent[conn.provider] ?? "border-l-zinc-200",
                 )}
               >
-                <CardContent className="flex items-center justify-between px-5 py-4">
-                  <div className="flex items-center gap-4">
-                    <div>
+                <CardContent className="px-5 py-4">
+                  <div className="flex items-center justify-between gap-4">
+                    {/* Left: provider name + sync status */}
+                    <div className="min-w-0">
                       <p className="text-sm font-medium text-zinc-900">
                         {providerLabel[conn.provider] ?? conn.provider}
                       </p>
                       {needsGcpProject ? (
-                        <p className="mt-0.5 text-xs text-zinc-400">Project ID required to start syncing</p>
-                      ) : (conn.backfillStatus === "pending" || conn.backfillStatus === "in_progress") && !conn.lastSyncedAt ? (
+                        <p className="mt-0.5 text-xs text-zinc-400">
+                          Project ID required to start syncing
+                        </p>
+                      ) : isSyncing ? (
                         <span className="mt-0.5 flex items-center gap-1.5">
                           <span className="flex gap-0.5">
                             <span className="h-1 w-1 rounded-full bg-zinc-400 animate-bounce [animation-delay:0ms]" />
                             <span className="h-1 w-1 rounded-full bg-zinc-400 animate-bounce [animation-delay:150ms]" />
                             <span className="h-1 w-1 rounded-full bg-zinc-400 animate-bounce [animation-delay:300ms]" />
                           </span>
-                          <span className="text-xs text-zinc-400">Syncing</span>
+                          <span className="text-xs text-zinc-400">Initial sync in progress…</span>
                         </span>
                       ) : (
                         <p className="mt-0.5 text-xs text-zinc-400">
@@ -130,31 +230,73 @@ export default async function ConnectionsPage({
                         </p>
                       )}
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {needsGcpProject ? (
-                      <>
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] px-2 py-0 h-5 bg-amber-50 text-amber-700 border-amber-100"
-                        >
-                          setup needed
-                        </Badge>
-                        <SetGcpProjectButton connectionId={conn.id} />
-                      </>
-                    ) : (
-                      <>
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] px-2 py-0 h-5 ${statusVariant[conn.status] ?? ""}`}
-                        >
-                          {conn.status}
-                        </Badge>
-                        <SyncButton id={conn.id} />
-                      </>
+
+                    {/* Center: sparkline + 7d spend + trend — hidden on mobile */}
+                    {!isSyncing && !needsGcpProject && (
+                      <div className="hidden sm:flex items-center gap-3">
+                        <ConnectionSparkline data={sparkData} />
+                        <div className="text-right">
+                          <p className="font-mono text-xs font-semibold tabular-nums text-zinc-900">
+                            {has7dData ? `$${total7d.toFixed(2)}` : "—"}
+                          </p>
+                          <div className="mt-0.5 flex items-center justify-end gap-0.5">
+                            {has7dData && direction === "up" && (
+                              <>
+                                <TrendingUp className="h-2.5 w-2.5 text-orange-400" strokeWidth={2} />
+                                <span className="text-[10px] text-orange-500">+{pct.toFixed(0)}%</span>
+                              </>
+                            )}
+                            {has7dData && direction === "down" && (
+                              <>
+                                <TrendingDown className="h-2.5 w-2.5 text-emerald-500" strokeWidth={2} />
+                                <span className="text-[10px] text-emerald-600">-{pct.toFixed(0)}%</span>
+                              </>
+                            )}
+                            {(!has7dData || direction === "flat") && (
+                              <span className="text-[10px] text-zinc-300">7d</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     )}
-                    <DeleteConnectionButton id={conn.id} provider={conn.provider} />
+
+                    {/* Right: badge + action buttons */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      {needsGcpProject ? (
+                        <>
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] px-2 py-0 h-5 bg-amber-50 text-amber-700 border-amber-100"
+                          >
+                            setup needed
+                          </Badge>
+                          <SetGcpProjectButton connectionId={conn.id} />
+                        </>
+                      ) : (
+                        <>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] px-2 py-0 h-5 ${statusVariant[conn.status] ?? ""}`}
+                          >
+                            {conn.status}
+                          </Badge>
+                          <SyncButton id={conn.id} />
+                        </>
+                      )}
+                      <DeleteConnectionButton id={conn.id} provider={conn.provider} />
+                    </div>
                   </div>
+
+                  {/* Inline error hint */}
+                  {isError && (
+                    <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2.5 text-xs text-red-700">
+                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+                      <span>
+                        {errorHint[conn.provider] ?? "Check your credentials and try re-syncing."}{" "}
+                        Use the sync button to retry, or delete and re-add this connection.
+                      </span>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )

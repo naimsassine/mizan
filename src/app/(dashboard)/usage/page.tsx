@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { SpendChart } from "@/components/dashboard/spend-chart"
+import { UsageTable } from "@/components/usage/usage-table"
+import { TokenEfficiencyTable } from "@/components/usage/token-efficiency-table"
 import { Download } from "lucide-react"
 
 const providerColors: Record<string, string> = {
@@ -117,6 +119,21 @@ export default async function UsagePage({
     .map(([date, { api, subscription }]) => ({ date, api, subscription }))
     .sort((a, b) => a.date.localeCompare(b.date))
 
+  // Aggregate by model+provider for token efficiency view
+  const efficiencyMap = new Map<string, { provider: string; inputTokens: number; outputTokens: number; costUsd: number }>()
+  for (const r of records) {
+    const key = `${r.provider}::${r.model}`
+    const e = efficiencyMap.get(key) ?? { provider: r.provider, inputTokens: 0, outputTokens: 0, costUsd: 0 }
+    e.inputTokens += Number(r._sum?.inputTokens ?? 0)
+    e.outputTokens += Number(r._sum?.outputTokens ?? 0)
+    e.costUsd += Number(r._sum?.costUsd ?? 0)
+    efficiencyMap.set(key, e)
+  }
+  const efficiencyRows = Array.from(efficiencyMap.entries()).map(([key, e]) => ({
+    model: key.split("::")[1],
+    ...e,
+  }))
+
   function rangeHref(d: number) {
     const params = new URLSearchParams()
     params.set("range", String(d))
@@ -132,9 +149,9 @@ export default async function UsagePage({
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-8 py-8">
+    <div className="mx-auto max-w-5xl px-4 md:px-8 py-6 md:py-8">
       {/* Header */}
-      <div className="mb-6 flex items-start justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-[1.6rem] font-semibold leading-tight tracking-tight text-zinc-900">
             Usage
@@ -148,7 +165,7 @@ export default async function UsagePage({
             className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-500 transition-all duration-150 hover:border-zinc-300 hover:text-zinc-900"
           >
             <Download className="h-3 w-3" />
-            Export CSV
+            <span className="hidden sm:inline">Export CSV</span>
           </a>
           {/* Range selector */}
           <div className="flex items-center gap-0.5 rounded-lg border border-zinc-200 bg-white p-1">
@@ -182,12 +199,23 @@ export default async function UsagePage({
             )}
           >
             {p === "all" ? "All providers" : providerLabel[p]}
+            {providerFilter === p && p !== "all" && (
+              <span className="ml-1.5 opacity-70">×</span>
+            )}
           </Link>
         ))}
+        {(providerFilter !== "all" || days !== 30) && (
+          <Link
+            href="/usage"
+            className="ml-1 text-xs text-zinc-400 hover:text-zinc-700 underline decoration-dotted transition-colors"
+          >
+            Clear filters
+          </Link>
+        )}
       </div>
 
       {/* Summary cards */}
-      <div className="mb-6 grid grid-cols-3 gap-4">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card className="rounded-xl border-zinc-100 bg-white shadow-none transition-shadow duration-200 hover:shadow-sm">
           <CardContent className="p-5">
             <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">Total spend</p>
@@ -246,63 +274,33 @@ export default async function UsagePage({
         </Card>
       ) : (
         <Card className="overflow-hidden rounded-xl border-zinc-100 bg-white shadow-none">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-100">
-                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-400">Date</th>
-                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-400">Model</th>
-                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-400">Provider</th>
-                  <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">Input</th>
-                  <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">Output</th>
-                  <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">Cost</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-50">
-                {records.map((row, i) => (
-                  <tr
-                    key={`${String(row.date)}-${row.model}-${i}`}
-                    className="transition-colors duration-100 hover:bg-zinc-50/70"
-                  >
-                    <td className="px-5 py-3 text-xs text-zinc-500">{format(row.date, "MMM d, yyyy")}</td>
-                    <td className="max-w-[200px] px-5 py-3">
-                      <span className="block truncate font-mono text-xs font-medium text-zinc-900">{row.model}</span>
-                    </td>
-                    <td className="px-5 py-3">
-                      <Badge variant="outline" className={`h-4 px-1.5 py-0 text-[10px] ${providerColors[row.provider] ?? ""}`}>
-                        {row.provider}
-                      </Badge>
-                    </td>
-                    <td className="px-5 py-3 text-right font-mono text-xs tabular-nums text-zinc-600">
-                      {formatTokens(Number(row._sum.inputTokens ?? 0))}
-                    </td>
-                    <td className="px-5 py-3 text-right font-mono text-xs tabular-nums text-zinc-600">
-                      {formatTokens(Number(row._sum.outputTokens ?? 0))}
-                    </td>
-                    <td className="px-5 py-3 text-right font-mono text-xs font-semibold tabular-nums text-zinc-900">
-                      ${Number(row._sum.costUsd ?? 0).toFixed(4)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-zinc-100 bg-zinc-50/60">
-                  <td colSpan={3} className="px-5 py-3 text-xs font-medium text-zinc-500">
-                    {records.length} {records.length === 1 ? "row" : "rows"}
-                  </td>
-                  <td className="px-5 py-3 text-right font-mono text-xs tabular-nums text-zinc-600">
-                    {formatTokens(records.reduce((s, r) => s + Number(r._sum.inputTokens ?? 0), 0))}
-                  </td>
-                  <td className="px-5 py-3 text-right font-mono text-xs tabular-nums text-zinc-600">
-                    {formatTokens(records.reduce((s, r) => s + Number(r._sum.outputTokens ?? 0), 0))}
-                  </td>
-                  <td className="px-5 py-3 text-right font-mono text-xs font-semibold tabular-nums text-zinc-900">
-                    ${totalCost.toFixed(4)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+          <UsageTable
+            rows={records.map((r) => ({
+              date: r.date,
+              model: r.model,
+              provider: r.provider,
+              inputTokens: Number(r._sum.inputTokens ?? 0),
+              outputTokens: Number(r._sum.outputTokens ?? 0),
+              costUsd: Number(r._sum.costUsd ?? 0),
+            }))}
+            totalCost={apiCost}
+            totalInputTokens={records.reduce((s, r) => s + Number(r._sum.inputTokens ?? 0), 0)}
+            totalOutputTokens={records.reduce((s, r) => s + Number(r._sum.outputTokens ?? 0), 0)}
+            providerColors={providerColors}
+          />
+        </Card>
+      )}
+
+      {/* Token efficiency */}
+      {efficiencyRows.length > 0 && (
+        <Card className="mt-6 overflow-hidden rounded-xl border-zinc-100 bg-white shadow-none">
+          <CardHeader className="px-5 pb-3 pt-5">
+            <p className="text-sm font-medium text-zinc-900">Token efficiency</p>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Output/input token ratio per model — a low ratio may indicate overly verbose prompts.
+            </p>
+          </CardHeader>
+          <TokenEfficiencyTable rows={efficiencyRows} />
         </Card>
       )}
 

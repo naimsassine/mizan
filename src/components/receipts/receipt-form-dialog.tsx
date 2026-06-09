@@ -21,6 +21,8 @@ import {
 import { Plus, Loader2, Trash2, Pencil } from "lucide-react"
 import { createReceipt, updateReceipt, deleteReceipt } from "@/app/(dashboard)/receipts/actions"
 import { format } from "date-fns"
+import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 
 const PROVIDERS = [
   { value: "openai", label: "OpenAI" },
@@ -74,6 +76,7 @@ export function ReceiptFormDialog({ receipt }: Props) {
   const [error, setError] = useState("")
   const [isPending, startTransition] = useTransition()
   const [isDeleting, startDeleteTransition] = useTransition()
+  const router = useRouter()
 
   function reset() {
     if (!isEdit) {
@@ -119,9 +122,26 @@ export function ReceiptFormDialog({ receipt }: Props) {
   }
 
   function handleDelete() {
-    startDeleteTransition(async () => {
-      await deleteReceipt(receipt!.id)
-      setOpen(false)
+    setOpen(false)
+    let cancelled = false
+    const tid = window.setTimeout(() => {
+      if (!cancelled) {
+        startDeleteTransition(async () => {
+          await deleteReceipt(receipt!.id)
+          router.refresh()
+        })
+      }
+    }, 5000)
+    toast("Receipt removed", {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          cancelled = true
+          clearTimeout(tid)
+          toast.success("Deletion cancelled", { duration: 2000 })
+        },
+      },
+      duration: 5000,
     })
   }
 

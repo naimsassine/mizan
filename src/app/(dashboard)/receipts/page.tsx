@@ -50,7 +50,7 @@ export default async function ReceiptsPage({
   ])
 
   return (
-    <div className="mx-auto max-w-3xl px-8 py-8">
+    <div className="mx-auto max-w-3xl px-4 md:px-8 py-6 md:py-8">
       <div className="mb-8 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Receipts</h1>
@@ -77,7 +77,9 @@ export default async function ReceiptsPage({
 
       {/* Connected email accounts */}
       {emailConnections.length > 0 && (
-        <div className="mb-6 space-y-2">
+        <div className="mb-6">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">Connected email accounts</p>
+          <div className="space-y-2">
           {emailConnections.map((conn) => (
             <Card
               key={conn.id}
@@ -129,6 +131,7 @@ export default async function ReceiptsPage({
               </CardContent>
             </Card>
           ))}
+          </div>
         </div>
       )}
 

@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server"
+import { subDays, startOfMonth, endOfMonth, startOfDay, format } from "date-fns"
 import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -9,6 +10,8 @@ import { AddRuleDialog } from "@/components/notifications/add-rule-dialog"
 import { DeleteRuleButton } from "@/components/notifications/delete-rule-button"
 import { AcknowledgeButton } from "@/components/notifications/acknowledge-button"
 import { DigestSettingsForm } from "@/components/notifications/digest-settings-form"
+import { AlertHistoryList } from "@/components/notifications/alert-history-list"
+import { AnomalyCard, type SpendAnomaly } from "@/components/notifications/anomaly-card"
 
 const providerLabel: Record<string, string> = {
   openai: "OpenAI",
@@ -47,7 +50,14 @@ export default async function NotificationsPage() {
   const ownerId = orgId ?? userId!
   const isOrg = !!orgId
 
-  const [rules, alerts, userSettings] = await Promise.all([
+  const now = new Date()
+  const monthStart = startOfMonth(now)
+  const monthEnd = endOfMonth(now)
+  const weekAgo = subDays(now, 7)
+  const dayAgo = subDays(now, 1)
+  const fourteenDaysAgo = subDays(startOfDay(now), 13)
+
+  const [rules, alerts, userSettings, monthlySpend, weeklySpend, dailySpend, anomalyRecords] = await Promise.all([
     prisma.budgetRule.findMany({
       where: { ownerId },
       orderBy: { createdAt: "desc" },
@@ -63,7 +73,35 @@ export default async function NotificationsPage() {
     !isOrg && userId
       ? prisma.userSettings.findUnique({ where: { clerkUserId: userId } })
       : null,
+    prisma.usageRecord.aggregate({
+      where: { ownerId, date: { gte: monthStart, lte: monthEnd } },
+      _sum: { costUsd: true },
+    }),
+    prisma.usageRecord.aggregate({
+      where: { ownerId, date: { gte: weekAgo } },
+      _sum: { costUsd: true },
+    }),
+    prisma.usageRecord.aggregate({
+      where: { ownerId, date: { gte: dayAgo } },
+      _sum: { costUsd: true },
+    }),
+    prisma.usageRecord.groupBy({
+      by: ["date"],
+      where: { ownerId, date: { gte: fourteenDaysAgo } },
+      _sum: { costUsd: true },
+      orderBy: [{ date: "asc" }],
+    }),
   ])
+
+  // Serialize Decimal fields for client components
+  const serializedAlerts = alerts.map((a) => ({
+    ...a,
+    spendUsd: Number(a.spendUsd),
+    budgetRule: {
+      ...a.budgetRule,
+      limitUsd: Number(a.budgetRule.limitUsd),
+    },
+  }))
 
   const unackCount = alerts.filter((a) => !a.acknowledgedAt).length
 
@@ -71,8 +109,39 @@ export default async function NotificationsPage() {
     ? userSettings.weeklyDigestProviders.split(",").filter(Boolean)
     : []
 
+  const spendSuggestions = {
+    monthly: Number(monthlySpend._sum.costUsd ?? 0),
+    weekly: Number(weeklySpend._sum.costUsd ?? 0),
+    daily: Number(dailySpend._sum.costUsd ?? 0),
+  }
+
+  // Anomaly detection: flag days where total spend ≥ 2× previous day and ≥ $0.10
+  const MIN_SPEND = 0.10
+  const dailySeries = anomalyRecords.map((r) => ({
+    date: r.date,
+    key: format(r.date, "yyyy-MM-dd"),
+    cost: Number(r._sum.costUsd ?? 0),
+  }))
+  const anomalies: SpendAnomaly[] = []
+  for (let i = 1; i < dailySeries.length; i++) {
+    const prev = dailySeries[i - 1]
+    const curr = dailySeries[i]
+    if (curr.cost >= MIN_SPEND && prev.cost > 0 && curr.cost >= prev.cost * 2) {
+      anomalies.push({
+        date: curr.date,
+        provider: null,
+        prevCost: prev.cost,
+        currCost: curr.cost,
+        multiplier: curr.cost / prev.cost,
+      })
+    }
+  }
+  // Keep only the 5 most severe
+  anomalies.sort((a, b) => b.multiplier - a.multiplier)
+  const topAnomalies = anomalies.slice(0, 5)
+
   return (
-    <div className="mx-auto max-w-3xl px-8 py-8">
+    <div className="mx-auto max-w-3xl px-4 md:px-8 py-6 md:py-8">
       <div className="mb-8 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Notifications</h1>
@@ -80,7 +149,7 @@ export default async function NotificationsPage() {
             Cost alerts and weekly email digests for your AI spend.
           </p>
         </div>
-        <AddRuleDialog />
+        <AddRuleDialog spendSuggestions={spendSuggestions} />
       </div>
 
       <div className="space-y-6">
@@ -103,6 +172,9 @@ export default async function NotificationsPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Anomaly detection */}
+        {topAnomalies.length > 0 && <AnomalyCard anomalies={topAnomalies} />}
 
         {/* Cost alert rules */}
         <Card className="rounded-xl border-zinc-100 bg-white shadow-none">
@@ -179,45 +251,7 @@ export default async function NotificationsPage() {
               </div>
             </CardContent>
           ) : (
-            <CardContent className="px-0 pb-0">
-              <div className="divide-y divide-zinc-50">
-                {alerts.map((alert) => (
-                  <div
-                    key={alert.id}
-                    className={`flex items-center justify-between px-5 py-3.5 ${!alert.acknowledgedAt ? "bg-red-50/40" : ""}`}
-                  >
-                    <div className="space-y-0.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {!alert.acknowledgedAt && (
-                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
-                        )}
-                        <span className="font-mono text-xs font-semibold text-zinc-900">
-                          ${Number(alert.spendUsd).toFixed(2)} spent
-                        </span>
-                        <span className="text-xs text-zinc-400">
-                          vs ${Number(alert.budgetRule.limitUsd).toFixed(2)}{" "}
-                          {alert.budgetRule.period} limit
-                        </span>
-                        {alert.budgetRule.provider && (
-                          <Badge
-                            variant="outline"
-                            className={`h-4 px-1.5 py-0 text-[10px] ${providerColors[alert.budgetRule.provider] ?? "bg-zinc-50 text-zinc-600 border-zinc-200"}`}
-                          >
-                            {providerLabel[alert.budgetRule.provider] ?? alert.budgetRule.provider}
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="pl-3.5 text-[11px] text-zinc-400">
-                        {formatDistanceToNow(alert.triggeredAt, { addSuffix: true })}
-                        {alert.acknowledgedAt &&
-                          ` · acknowledged ${formatDistanceToNow(alert.acknowledgedAt, { addSuffix: true })}`}
-                      </p>
-                    </div>
-                    {!alert.acknowledgedAt && <AcknowledgeButton id={alert.id} />}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
+            <AlertHistoryList alerts={serializedAlerts} providerColors={providerColors} providerLabel={providerLabel} />
           )}
         </Card>
       </div>

@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card"
 
 export default function UsageLoading() {
   return (
-    <div className="mx-auto max-w-5xl px-8 py-8">
+    <div className="mx-auto max-w-5xl px-4 md:px-8 py-6 md:py-8">
       <div className="mb-8 flex items-start justify-between">
         <div>
           <Skeleton className="h-8 w-24" />
