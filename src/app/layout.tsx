@@ -31,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         suppressHydrationWarning
       >
         <body className="h-full font-sans antialiased">
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             <TooltipProvider>{children}</TooltipProvider>
             <Toaster position="bottom-right" toastOptions={{ className: "text-xs font-sans" }} />
           </ThemeProvider>
