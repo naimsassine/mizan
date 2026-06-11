@@ -59,7 +59,8 @@ export function DeleteConnectionButton({ id, provider }: { id: string; provider:
       <button
         onClick={() => setOpen(true)}
         title="Remove connection"
-        className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors duration-200 hover:bg-red-50 hover:text-red-500"
+        aria-label={`Remove ${label} connection`}
+        className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors duration-200 hover:bg-red-50 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
       >
         <Trash2 className="h-3.5 w-3.5" />
       </button>

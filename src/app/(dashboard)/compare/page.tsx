@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { CostPerMillionChart } from "@/components/compare/cost-per-million-chart"
-import { Info } from "lucide-react"
+import { Info, ArrowRight } from "lucide-react"
 
 const PROVIDER_LABEL: Record<string, string> = {
   openai: "OpenAI",
@@ -98,8 +98,13 @@ export default async function ComparePage({
       const costPer1M = totalTokens > 0 ? (totalCost / totalTokens) * 1_000_000 : 0
       return { provider: r.provider, model: r.model, totalCost, totalTokens, inputTokens, outputTokens, costPer1M }
     })
-    .filter((r) => r.totalTokens > 0 && r.costPer1M > 0)
-    .sort((a, b) => a.costPer1M - b.costPer1M)
+    .filter((r) => r.totalCost > 0)
+    .sort((a, b) => {
+      // cost-only rows (e.g. Bedrock with no token counts) sort last
+      if (a.totalTokens === 0 && b.totalTokens > 0) return 1
+      if (a.totalTokens > 0 && b.totalTokens === 0) return -1
+      return a.costPer1M - b.costPer1M
+    })
 
   const filteredProvider =
     providerParam && Object.keys(PROVIDER_LABEL).includes(providerParam) ? providerParam : null
@@ -108,11 +113,14 @@ export default async function ComparePage({
 
   const activeProviders = Array.from(new Set(rows.map((r) => r.provider)))
 
-  const chartData = displayRows.slice(0, 20).map((r) => ({
-    label: r.model.length > 26 ? r.model.slice(0, 26) + "…" : r.model,
-    costPer1M: parseFloat(r.costPer1M.toFixed(4)),
-    provider: r.provider,
-  }))
+  const chartData = displayRows
+    .filter((r) => r.totalTokens > 0)
+    .slice(0, 20)
+    .map((r) => ({
+      label: r.model.length > 26 ? r.model.slice(0, 26) + "…" : r.model,
+      costPer1M: parseFloat(r.costPer1M.toFixed(4)),
+      provider: r.provider,
+    }))
 
   function rangeHref(d: number) {
     const p = new URLSearchParams()
@@ -195,8 +203,15 @@ export default async function ComparePage({
           <CardContent className="py-16 text-center">
             <p className="text-sm text-zinc-500">No usage data for this period.</p>
             <p className="mt-1 text-xs text-zinc-400">
-              Sync your connections to start seeing cost comparisons.
+              Connect a provider to start seeing cost comparisons.
             </p>
+            <Link
+              href="/connections"
+              className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3.5 py-2 text-xs font-medium text-white transition-colors hover:bg-zinc-700"
+            >
+              Add connection
+              <ArrowRight className="h-3 w-3" />
+            </Link>
           </CardContent>
         </Card>
       ) : (
@@ -222,42 +237,56 @@ export default async function ComparePage({
             </CardContent>
           </Card>
 
-          {/* Summary stats */}
-          {displayRows.length >= 2 && (
-            <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Card className="rounded-xl border-zinc-100 bg-white shadow-none">
-                <CardContent className="p-5">
-                  <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">Cheapest model</p>
-                  <p className="mt-2 font-mono text-sm font-semibold text-zinc-900 truncate">
-                    {displayRows[0].model}
-                  </p>
-                  <p className="mt-0.5 font-mono text-xs text-zinc-400">
-                    ${displayRows[0].costPer1M.toFixed(4)}/1M tokens
-                  </p>
-                </CardContent>
-              </Card>
-              <Card className="rounded-xl border-zinc-100 bg-white shadow-none">
-                <CardContent className="p-5">
-                  <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">Most expensive</p>
-                  <p className="mt-2 font-mono text-sm font-semibold text-zinc-900 truncate">
-                    {displayRows[displayRows.length - 1].model}
-                  </p>
-                  <p className="mt-0.5 font-mono text-xs text-zinc-400">
-                    ${displayRows[displayRows.length - 1].costPer1M.toFixed(4)}/1M tokens
-                  </p>
-                </CardContent>
-              </Card>
-              <Card className="rounded-xl border-zinc-100 bg-white shadow-none">
-                <CardContent className="p-5">
-                  <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">Price spread</p>
-                  <p className="mt-2 font-mono text-2xl font-semibold tabular-nums tracking-tight text-zinc-900">
-                    {(displayRows[displayRows.length - 1].costPer1M / displayRows[0].costPer1M).toFixed(1)}×
-                  </p>
-                  <p className="mt-0.5 text-xs text-zinc-400">most vs least expensive</p>
-                </CardContent>
-              </Card>
+          {displayRows.some((r) => r.totalTokens === 0) && (
+            <div className="mb-6 flex items-start gap-2 rounded-lg border border-zinc-100 bg-zinc-50 px-4 py-3 text-xs text-zinc-500">
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+              <span>
+                Cost-only sources (e.g. AWS Bedrock via Cost Explorer) report spend without token
+                counts, so they can&apos;t be ranked by $/1M tokens and are excluded from the chart
+                above. They&apos;re listed at the bottom of the table.
+              </span>
             </div>
           )}
+
+          {/* Summary stats — only for rows with token data */}
+          {(() => {
+            const tokenRows = displayRows.filter((r) => r.totalTokens > 0)
+            return tokenRows.length >= 2 ? (
+              <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Card className="rounded-xl border-zinc-100 bg-white shadow-none">
+                  <CardContent className="p-5">
+                    <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">Cheapest model</p>
+                    <p className="mt-2 font-mono text-sm font-semibold text-zinc-900 truncate">
+                      {tokenRows[0].model}
+                    </p>
+                    <p className="mt-0.5 font-mono text-xs text-zinc-400">
+                      ${tokenRows[0].costPer1M.toFixed(4)}/1M tokens
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card className="rounded-xl border-zinc-100 bg-white shadow-none">
+                  <CardContent className="p-5">
+                    <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">Most expensive</p>
+                    <p className="mt-2 font-mono text-sm font-semibold text-zinc-900 truncate">
+                      {tokenRows[tokenRows.length - 1].model}
+                    </p>
+                    <p className="mt-0.5 font-mono text-xs text-zinc-400">
+                      ${tokenRows[tokenRows.length - 1].costPer1M.toFixed(4)}/1M tokens
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card className="rounded-xl border-zinc-100 bg-white shadow-none">
+                  <CardContent className="p-5">
+                    <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">Price spread</p>
+                    <p className="mt-2 font-mono text-2xl font-semibold tabular-nums tracking-tight text-zinc-900">
+                      {(tokenRows[tokenRows.length - 1].costPer1M / tokenRows[0].costPer1M).toFixed(1)}×
+                    </p>
+                    <p className="mt-0.5 text-xs text-zinc-400">most vs least expensive</p>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : null
+          })()}
 
           {/* Table */}
           <Card className="overflow-hidden rounded-xl border-zinc-100 bg-white shadow-none">
@@ -267,9 +296,11 @@ export default async function ComparePage({
                   <tr className="border-b border-zinc-100">
                     <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-400">Model</th>
                     <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-400">Provider</th>
-                    <th className="hidden sm:table-cell px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">Total tokens</th>
+                    <th className="hidden md:table-cell px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">Input</th>
+                    <th className="hidden md:table-cell px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">Output</th>
                     <th className="hidden sm:table-cell px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">Total cost</th>
                     <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">$/1M tokens</th>
+                    <th className="sr-only">Notes</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-50">
@@ -286,14 +317,20 @@ export default async function ComparePage({
                           {PROVIDER_LABEL[row.provider] ?? row.provider}
                         </Badge>
                       </td>
-                      <td className="hidden sm:table-cell px-5 py-3 text-right font-mono text-xs tabular-nums text-zinc-500">
-                        {formatTokens(row.totalTokens)}
+                      <td className="hidden md:table-cell px-5 py-3 text-right font-mono text-xs tabular-nums text-zinc-500">
+                        {row.inputTokens > 0 ? formatTokens(row.inputTokens) : "—"}
+                      </td>
+                      <td className="hidden md:table-cell px-5 py-3 text-right font-mono text-xs tabular-nums text-zinc-500">
+                        {row.outputTokens > 0 ? formatTokens(row.outputTokens) : "—"}
                       </td>
                       <td className="hidden sm:table-cell px-5 py-3 text-right font-mono text-xs font-semibold tabular-nums text-zinc-900">
                         ${row.totalCost.toFixed(2)}
                       </td>
                       <td className="px-5 py-3 text-right font-mono text-xs font-semibold tabular-nums text-zinc-900">
-                        ${row.costPer1M.toFixed(4)}
+                        {row.totalTokens > 0 ? `$${row.costPer1M.toFixed(4)}` : "—"}
+                      </td>
+                      <td className="px-5 py-3 text-right text-[10px] text-zinc-400">
+                        {row.totalTokens === 0 ? "cost only" : ""}
                       </td>
                     </tr>
                   ))}

@@ -25,8 +25,9 @@ const PRICING: Record<string, { input: number; output: number }> = {
 
 function modelPrice(model: string) {
   if (PRICING[model]) return PRICING[model]
-  for (const [key, p] of Object.entries(PRICING)) {
-    if (model.includes(key) || key.includes(model.split(":")[0])) return p
+  const sortedKeys = Object.keys(PRICING).sort((a, b) => b.length - a.length)
+  for (const key of sortedKeys) {
+    if (model.startsWith(key)) return PRICING[key]
   }
   console.warn(`[mizan] Unknown Mistral model pricing: "${model}" — cost stored as $0`)
   return null
@@ -152,7 +153,7 @@ export async function syncMistral(connectionId: string) {
     const isAuthError = err instanceof Error && err.message === "mistral_auth"
     await prisma.providerConnection.update({
       where: { id: connectionId },
-      data: { status: isAuthError ? "error" : "error", backfillStatus: "failed" },
+      data: { status: isAuthError ? "expired" : "error", backfillStatus: "failed" },
     })
   }
 }
@@ -168,19 +169,21 @@ export async function syncMistralIncremental(connectionId: string) {
     return
   }
 
-  const yesterday = subDays(new Date(), 1)
   const ownerType = connection.ownerType as "user" | "org"
 
   try {
-    const rows = await fetchMistralDayUsage(credentials.apiKey, yesterday)
-    if (!rows) return
-    for (const row of rows) {
-      await upsertRecord({
-        connectionId, ownerId: connection.ownerId, ownerType,
-        date: startOfDay(yesterday), model: row.model,
-        inputTokens: row.inputTokens, outputTokens: row.outputTokens,
-        raw: row,
-      })
+    const days = eachDayOfInterval({ start: subDays(new Date(), 3), end: subDays(new Date(), 1) })
+    for (const day of days) {
+      const rows = await fetchMistralDayUsage(credentials.apiKey, day)
+      if (!rows) continue
+      for (const row of rows) {
+        await upsertRecord({
+          connectionId, ownerId: connection.ownerId, ownerType,
+          date: startOfDay(day), model: row.model,
+          inputTokens: row.inputTokens, outputTokens: row.outputTokens,
+          raw: row,
+        })
+      }
     }
     await prisma.providerConnection.update({
       where: { id: connectionId },

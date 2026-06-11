@@ -5,6 +5,7 @@ import { Trash2, Loader2, AlertTriangle } from "lucide-react"
 import { disconnectEmailAccount } from "@/app/(dashboard)/receipts/actions"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
 
 export function DisconnectEmailButton({ id, email }: { id: string; email: string }) {
   const [open, setOpen] = useState(false)
@@ -14,6 +15,7 @@ export function DisconnectEmailButton({ id, email }: { id: string; email: string
     startTransition(async () => {
       await disconnectEmailAccount(id)
       setOpen(false)
+      toast.success(`Disconnected ${email}`)
     })
   }
 
@@ -21,7 +23,9 @@ export function DisconnectEmailButton({ id, email }: { id: string; email: string
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors duration-200 hover:bg-red-50 hover:text-red-500"
+        title="Disconnect email account"
+        aria-label={`Disconnect ${email}`}
+        className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors duration-200 hover:bg-red-50 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
       >
         <Trash2 className="h-3.5 w-3.5" />
       </button>

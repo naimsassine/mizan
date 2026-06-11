@@ -58,14 +58,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL("/connections?error=oauth_denied", req.url))
   }
 
+  let stateOrgId: string | null = null
   try {
     const stateData = JSON.parse(Buffer.from(state, "base64url").toString("utf-8")) as {
       userId: string
       orgId: string | null
+      nonce?: string
     }
-    if (stateData.userId !== userId) {
+    const storedNonce = req.cookies.get("oauth_nonce")?.value
+    if (stateData.userId !== userId || (stateData.nonce && stateData.nonce !== storedNonce)) {
       return NextResponse.redirect(new URL("/connections?error=state_mismatch", req.url))
     }
+    stateOrgId = stateData.orgId
   } catch {
     return NextResponse.redirect(new URL("/connections?error=invalid_state", req.url))
   }
@@ -77,16 +81,13 @@ export async function GET(req: NextRequest) {
     // Auto-select the only project; otherwise mark as PENDING for manual config
     const projectId = projects.length === 1 ? projects[0].projectId : "PENDING"
 
-    const ownerId = orgId ?? userId
-    const ownerType: "user" | "org" = orgId ? "org" : "user"
+    const ownerId = stateOrgId ?? userId
+    const ownerType: "user" | "org" = stateOrgId ? "org" : "user"
 
-    const backfillMonths =
-      (
-        await prisma.userSettings.findUnique({
-          where: { clerkUserId: userId },
-          select: { backfillMonths: true },
-        })
-      )?.backfillMonths ?? 3
+    // Use org settings when connecting as an org, not user settings
+    const backfillMonths = stateOrgId
+      ? ((await prisma.orgSettings.findUnique({ where: { clerkOrgId: stateOrgId }, select: { backfillMonths: true } }))?.backfillMonths ?? 3)
+      : ((await prisma.userSettings.findUnique({ where: { clerkUserId: userId }, select: { backfillMonths: true } }))?.backfillMonths ?? 3)
 
     const connection = await prisma.providerConnection.create({
       data: {
@@ -111,7 +112,9 @@ export async function GET(req: NextRequest) {
         ? `/connections?gcp_conn=${connection.id}`
         : "/connections"
 
-    return NextResponse.redirect(new URL(redirect, req.url))
+    const response = NextResponse.redirect(new URL(redirect, req.url))
+    response.cookies.delete("oauth_nonce")
+    return response
   } catch (err) {
     console.error("[gcp/callback]", err)
     return NextResponse.redirect(new URL("/connections?error=connection_failed", req.url))

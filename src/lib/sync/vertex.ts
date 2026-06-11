@@ -23,7 +23,9 @@ function priceFor(modelId: string): { input: number; output: number } {
     .replace(/publishers\/google\/models\//, "")
     .replace(/-\d{3}$/, "")
     .toLowerCase()
-  return VERTEX_PRICING[base] ?? { input: 0, output: 0 }
+  if (VERTEX_PRICING[base]) return VERTEX_PRICING[base]
+  console.warn(`[mizan] Unknown Vertex model pricing: "${modelId}" — cost stored as $0`)
+  return { input: 0, output: 0 }
 }
 
 interface VertexCredentials {
@@ -157,8 +159,8 @@ export async function syncVertex(connectionId: string, backfill = false) {
 
   try {
     const now = new Date()
-    const startDate = backfill ? connection.backfillFrom : subDays(now, 1)
-    const endDate = subDays(now, 0)
+    const startDate = backfill ? connection.backfillFrom : subDays(now, 3)
+    const endDate = subDays(now, 1)
 
     const series = await queryTokens(
       accessToken,
@@ -179,7 +181,7 @@ export async function syncVertex(connectionId: string, backfill = false) {
       const isInput = tokenType === "INPUT"
 
       for (const point of ts.points) {
-        const day = format(new Date(point.interval.endTime), "yyyy-MM-dd")
+        const day = format(new Date(point.interval.startTime), "yyyy-MM-dd")
         if (!dayMap.has(day)) dayMap.set(day, new Map())
         const models = dayMap.get(day)!
         if (!models.has(modelId)) models.set(modelId, { input: 0n, output: 0n })

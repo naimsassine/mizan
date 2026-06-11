@@ -19,14 +19,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL("/receipts?error=oauth_denied", req.url))
   }
 
+  let stateOrgId: string | null = null
   try {
     const stateData = JSON.parse(Buffer.from(state, "base64url").toString("utf-8")) as {
       userId: string
       orgId: string | null
+      nonce?: string
     }
-    if (stateData.userId !== userId) {
+    const storedNonce = req.cookies.get("oauth_nonce")?.value
+    if (stateData.userId !== userId || (stateData.nonce && stateData.nonce !== storedNonce)) {
       return NextResponse.redirect(new URL("/receipts?error=state_mismatch", req.url))
     }
+    stateOrgId = stateData.orgId
   } catch {
     return NextResponse.redirect(new URL("/receipts?error=invalid_state", req.url))
   }
@@ -35,8 +39,8 @@ export async function GET(req: NextRequest) {
     const tokens = await exchangeCode(code, origin)
     const profile = await getGmailProfile(tokens.accessToken)
 
-    const ownerId = orgId ?? userId
-    const ownerType: "user" | "org" = orgId ? "org" : "user"
+    const ownerId = stateOrgId ?? userId
+    const ownerType: "user" | "org" = stateOrgId ? "org" : "user"
 
     const connection = await prisma.emailConnection.upsert({
       where: {
@@ -59,7 +63,9 @@ export async function GET(req: NextRequest) {
       await scanEmails(connection.id)
     })
 
-    return NextResponse.redirect(new URL("/receipts", req.url))
+    const response = NextResponse.redirect(new URL("/receipts", req.url))
+    response.cookies.delete("oauth_nonce")
+    return response
   } catch (err) {
     console.error("[gmail/callback]", err)
     return NextResponse.redirect(new URL("/receipts?error=connection_failed", req.url))

@@ -141,20 +141,29 @@ export async function sendWeeklyDigest(userId: string) {
   const settings = await prisma.userSettings.findUnique({ where: { clerkUserId: userId } })
   if (!settings?.weeklyDigest) return
 
-  // Resolve user email
+  // Resolve user email and org memberships
   let email: string | undefined
+  let orgIds: string[] = []
   try {
     const clerk = await clerkClient()
-    const user = await clerk.users.getUser(userId)
+    const [user, memberships] = await Promise.all([
+      clerk.users.getUser(userId),
+      clerk.users.getOrganizationMembershipList({ userId }),
+    ])
     email = user.emailAddresses.find((e) => e.id === user.primaryEmailAddressId)?.emailAddress
+    orgIds = memberships.data.map((m) => m.organization.id)
   } catch {
     return
   }
   if (!email) return
 
+  const allOwnerIds = [userId, ...orgIds]
+
   const now = new Date()
-  const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 })
-  const priorWeekStart = subWeeks(thisWeekStart, 1)
+  // Report the last *completed* Mon–Sun week, not the current partial week
+  const lastWeekStart = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 })
+  const lastWeekEnd = endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 })
+  const priorWeekStart = subWeeks(lastWeekStart, 1)
   const priorWeekEnd = endOfWeek(priorWeekStart, { weekStartsOn: 1 })
 
   const filterProviders =
@@ -168,14 +177,13 @@ export async function sendWeeklyDigest(userId: string) {
 
   const [thisWeekRecords, priorWeekRecords] = await Promise.all([
     prisma.usageRecord.findMany({
-      where: { ownerId: userId, ownerType: "user", date: { gte: priorWeekEnd }, ...providerFilter },
+      where: { ownerId: { in: allOwnerIds }, date: { gte: lastWeekStart, lte: lastWeekEnd }, ...providerFilter },
       select: { costUsd: true, provider: true, model: true },
     }),
     prisma.usageRecord.findMany({
       where: {
-        ownerId: userId,
-        ownerType: "user",
-        date: { gte: priorWeekStart, lt: priorWeekEnd },
+        ownerId: { in: allOwnerIds },
+        date: { gte: priorWeekStart, lte: priorWeekEnd },
         ...providerFilter,
       },
       select: { costUsd: true },
@@ -206,7 +214,7 @@ export async function sendWeeklyDigest(userId: string) {
 
   if (thisWeekSpend === 0 && priorWeekSpend === 0) return // nothing to report
 
-  const weekLabel = `Week of ${thisWeekStart.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+  const weekLabel = `Week of ${lastWeekStart.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://mizan.app"
 
   await resend.emails.send({

@@ -48,9 +48,10 @@ const UNPRICED_PREFIXES = ["dall-e", "tts", "whisper", "babbage", "davinci", "cu
 
 function modelPrice(model: string): { input: number; output: number } | null {
   if (PRICING[model]) return PRICING[model]
-  // prefix match: "gpt-4.1-2025-..." → gpt-4.1
-  for (const [key, p] of Object.entries(PRICING)) {
-    if (model.startsWith(key)) return p
+  // longest-prefix match: "gpt-4o-mini-2024-07-18" → "gpt-4o-mini" not "gpt-4o"
+  const sortedKeys = Object.keys(PRICING).sort((a, b) => b.length - a.length)
+  for (const key of sortedKeys) {
+    if (model.startsWith(key)) return PRICING[key]
   }
   // Models we explicitly can't price (non-completion APIs)
   if (UNPRICED_PREFIXES.some((pfx) => model.startsWith(pfx))) return null
@@ -236,13 +237,14 @@ export async function syncOpenAIIncremental(connectionId: string) {
     return
   }
 
+  const from = subDays(new Date(), 3)
   const yesterday = subDays(new Date(), 1)
   const ownerType = connection.ownerType as "user" | "org"
 
   try {
-    const adminWorked = await fetchAdminUsage(credentials.apiKey, connectionId, connection.ownerId, ownerType, yesterday, yesterday)
+    const adminWorked = await fetchAdminUsage(credentials.apiKey, connectionId, connection.ownerId, ownerType, from, yesterday)
     if (!adminWorked) {
-      await fetchLegacyUsage(credentials.apiKey, connectionId, connection.ownerId, ownerType, yesterday, yesterday)
+      await fetchLegacyUsage(credentials.apiKey, connectionId, connection.ownerId, ownerType, from, yesterday)
     }
     await prisma.providerConnection.update({
       where: { id: connectionId },

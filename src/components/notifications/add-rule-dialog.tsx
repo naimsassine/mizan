@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createBudgetRule } from "@/app/(dashboard)/notifications/actions"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 
 interface SpendSuggestions {
   monthly: number
@@ -44,6 +45,7 @@ export function AddRuleDialog({ spendSuggestions }: { spendSuggestions?: SpendSu
         setPeriod("monthly")
         setLimit("")
         setThreshold("80")
+        toast.success("Budget rule created", { description: `Alert fires when ${period} spend reaches ${threshold}% of $${limit}.` })
         router.refresh()
       }
     })

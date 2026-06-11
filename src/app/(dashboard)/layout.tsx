@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { Sidebar } from "@/components/layout/sidebar"
 import { MobileNav } from "@/components/layout/mobile-nav"
+import { CommandPalette } from "@/components/layout/command-palette"
 
 export const dynamic = "force-dynamic"
 
@@ -22,6 +23,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
       {/* Mobile top bar + drawer — hidden on md+ */}
       <MobileNav unackAlerts={unackAlerts} />
+
+      {/* Cmd+K command palette */}
+      <CommandPalette />
 
       <main className="flex-1 md:pl-14 pt-14 md:pt-0 overflow-auto bg-zinc-50/60 dark:bg-zinc-950">
         {children}

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+
+export const maxDuration = 300
 import { syncOpenAIIncremental } from "@/lib/sync/openai"
 import { syncAnthropicIncremental } from "@/lib/sync/anthropic"
 import { syncGeminiIncremental } from "@/lib/sync/gemini"
@@ -29,7 +31,7 @@ export async function GET(req: Request) {
     }),
     prisma.emailConnection.findMany({
       where: { status: "active" },
-      select: { id: true },
+      select: { id: true, ownerId: true },
     }),
   ])
 
@@ -51,8 +53,12 @@ export async function GET(req: Request) {
   // Re-scan email inboxes for new billing emails
   await Promise.allSettled(emailConnections.map((c) => scanEmails(c.id)))
 
-  // Check budget alerts for all owners that have rules
-  const ownerIds = [...new Set(connections.map((c) => c.ownerId))]
+  // Check budget alerts for all owners — include those with only email connections
+  const allOwnerIds = [
+    ...connections.map((c) => c.ownerId),
+    ...emailConnections.map((c) => c.ownerId),
+  ]
+  const ownerIds = [...new Set(allOwnerIds)]
   await Promise.allSettled(ownerIds.map(checkBudgetAlerts))
 
   // Send weekly digests to users whose chosen day matches today
@@ -91,17 +97,31 @@ async function checkBudgetAlerts(ownerId: string) {
     })
     if (existingAlert) continue
 
-    // Calculate current period spend
-    const spend = await prisma.usageRecord.aggregate({
-      where: {
-        ownerId,
-        date: { gte: periodStart },
-        ...(rule.provider ? { provider: rule.provider } : {}),
-      },
-      _sum: { costUsd: true },
-    })
+    // Calculate current period spend — include both API usage records and receipts
+    const [apiSpend, receiptSpend] = await Promise.all([
+      prisma.usageRecord.aggregate({
+        where: {
+          ownerId,
+          date: { gte: periodStart },
+          ...(rule.provider ? { provider: rule.provider } : {}),
+        },
+        _sum: { costUsd: true },
+      }),
+      prisma.receipt.aggregate({
+        where: {
+          ownerId,
+          OR: [
+            { billingPeriodStart: { gte: periodStart } },
+            { billingPeriodStart: null, parsedAt: { gte: periodStart } },
+            { billingPeriodStart: null, parsedAt: null, createdAt: { gte: periodStart } },
+          ],
+          ...(rule.provider ? { provider: rule.provider } : {}),
+        },
+        _sum: { amountUsd: true },
+      }),
+    ])
 
-    const spendUsd = Number(spend._sum.costUsd ?? 0)
+    const spendUsd = Number(apiSpend._sum.costUsd ?? 0) + Number(receiptSpend._sum.amountUsd ?? 0)
     const threshold = (Number(rule.limitUsd) * rule.alertAtPct) / 100
 
     if (spendUsd >= threshold) {

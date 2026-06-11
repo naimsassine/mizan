@@ -149,6 +149,7 @@
 .dark .text-zinc-300               { color: oklch(0.45 0 0); }
 
 /* Hovers */
+.dark .hover\:bg-zinc-700:hover    { background-color: oklch(0.75 0 0); }
 .dark .hover\:bg-zinc-100:hover    { background-color: oklch(0.25 0 0); }
 .dark .hover\:bg-zinc-50\/70:hover { background-color: oklch(0.22 0 0 / 0.7); }
 .dark .hover\:text-zinc-900:hover  { color: oklch(0.985 0 0); }

@@ -4,9 +4,12 @@ import { auth } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 
+const VALID_PROVIDERS = ["openai", "anthropic", "gemini", "bedrock", "groq", "mistral", "grok", "kimi", "openrouter", "litellm"]
+
 export async function createBudgetRule(formData: FormData) {
-  const { userId, orgId } = await auth()
+  const { userId, orgId, orgRole } = await auth()
   if (!userId) return { error: "Unauthorized" }
+  if (orgId && orgRole === "org:viewer") return { error: "Viewers cannot create budget rules" }
 
   const ownerId = orgId ?? userId
   const ownerType = orgId ? "org" : "user"
@@ -39,8 +42,9 @@ export async function createBudgetRule(formData: FormData) {
 }
 
 export async function deleteBudgetRule(id: string) {
-  const { userId, orgId } = await auth()
+  const { userId, orgId, orgRole } = await auth()
   if (!userId) return { error: "Unauthorized" }
+  if (orgId && orgRole === "org:viewer") return { error: "Viewers cannot delete budget rules" }
 
   const ownerId = orgId ?? userId
   await prisma.budgetRule.deleteMany({ where: { id, ownerId } })
@@ -78,6 +82,9 @@ export async function saveDigestSettings(data: {
   if (!userId) return { error: "Unauthorized" }
 
   if (data.weeklyDigestDay < 0 || data.weeklyDigestDay > 6) return { error: "Invalid day" }
+
+  const invalidProviders = data.weeklyDigestProviders.filter((p) => !VALID_PROVIDERS.includes(p))
+  if (invalidProviders.length > 0) return { error: "Invalid provider(s)" }
 
   await prisma.userSettings.upsert({
     where: { clerkUserId: userId },

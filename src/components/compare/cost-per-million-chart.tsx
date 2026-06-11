@@ -9,6 +9,7 @@ import {
   Tooltip,
   Cell,
 } from "recharts"
+import { useTheme } from "next-themes"
 
 interface ChartRow {
   label: string
@@ -40,14 +41,18 @@ function CustomTooltip({
 }) {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-lg border border-zinc-100 bg-white px-3 py-2.5 shadow-md text-xs">
+    <div className="rounded-lg border border-zinc-100 bg-white dark:bg-zinc-800 dark:border-zinc-700 px-3 py-2.5 shadow-md text-xs">
       <p className="mb-1 text-zinc-400 truncate max-w-[180px]">{label}</p>
-      <p className="font-mono font-semibold text-zinc-900">${payload[0].value.toFixed(4)}/1M tokens</p>
+      <p className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">${payload[0].value.toFixed(4)}/1M tokens</p>
     </div>
   )
 }
 
 export function CostPerMillionChart({ data }: { data: ChartRow[] }) {
+  const { resolvedTheme } = useTheme()
+  const cursorFill = resolvedTheme === "dark" ? "#27272a" : "#f4f4f5"
+  const yAxisTickColor = resolvedTheme === "dark" ? "#a1a1aa" : "#52525b"
+
   if (!data.length) return null
 
   return (
@@ -70,10 +75,10 @@ export function CostPerMillionChart({ data }: { data: ChartRow[] }) {
           dataKey="label"
           tickLine={false}
           axisLine={false}
-          tick={{ fontSize: 10, fill: "#52525b" }}
+          tick={{ fontSize: 10, fill: yAxisTickColor }}
           width={150}
         />
-        <Tooltip content={<CustomTooltip />} cursor={{ fill: "#f4f4f5" }} />
+        <Tooltip content={<CustomTooltip />} cursor={{ fill: cursorFill }} />
         <Bar dataKey="costPer1M" radius={[0, 3, 3, 0]}>
           {data.map((row, i) => (
             <Cell key={i} fill={PROVIDER_COLORS[row.provider] ?? "#d4d4d8"} />

@@ -34,7 +34,8 @@ export function ScanEmailButton({ id }: { id: string }) {
       onClick={handleClick}
       disabled={isPending}
       title="Scan inbox now"
-      className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors duration-200 hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-50"
+      aria-label="Scan inbox now"
+      className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors duration-200 hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 disabled:opacity-50 dark:hover:bg-zinc-800"
     >
       {isPending ? (
         <Loader2 className="h-3.5 w-3.5 animate-spin" />

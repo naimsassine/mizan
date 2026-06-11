@@ -3,6 +3,7 @@
 import { useTransition } from "react"
 import { Loader2 } from "lucide-react"
 import { reclassifyReceipt } from "@/app/(dashboard)/receipts/actions"
+import { toast } from "sonner"
 
 interface Props {
   id: string
@@ -16,6 +17,7 @@ export function ReclassifyBadge({ id, usageType }: Props) {
     const next = usageType === "api" ? "subscription" : "api"
     startTransition(async () => {
       await reclassifyReceipt(id, next)
+      toast.success(`Reclassified as ${next}`)
     })
   }
 

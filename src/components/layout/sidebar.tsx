@@ -106,7 +106,6 @@ export function Sidebar({ unackAlerts = 0 }: { unackAlerts?: number }) {
         <div className="flex h-9 items-center gap-3 px-2.5">
           <div className="shrink-0">
             <OrganizationSwitcher
-              hidePersonal
               appearance={{
                 elements: {
                   rootBox: "flex items-center w-4 overflow-visible",

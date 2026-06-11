@@ -44,8 +44,9 @@ export async function createReceipt(data: {
   invoiceId: string | null
   usageType?: "api" | "subscription"
 }) {
-  const { userId, orgId } = await auth()
+  const { userId, orgId, orgRole } = await auth()
   if (!userId) return { error: "Unauthorized" }
+  if (orgId && orgRole === "org:viewer") return { error: "Viewers cannot add receipts" }
 
   if (!data.amountUsd || data.amountUsd <= 0) return { error: "Amount must be greater than 0" }
 
@@ -122,8 +123,9 @@ export async function reclassifyReceipt(id: string, usageType: "api" | "subscrip
 }
 
 export async function deleteReceipt(id: string) {
-  const { userId, orgId } = await auth()
+  const { userId, orgId, orgRole } = await auth()
   if (!userId) return { error: "Unauthorized" }
+  if (orgId && orgRole === "org:viewer") return { error: "Viewers cannot delete receipts" }
 
   const ownerId = orgId ?? userId
   await prisma.receipt.deleteMany({ where: { id, ownerId } })
@@ -134,8 +136,19 @@ export async function deleteReceipt(id: string) {
 }
 
 export async function uploadReceipt(formData: FormData) {
-  const { userId, orgId } = await auth()
+  const { userId, orgId, orgRole } = await auth()
   if (!userId) return { error: "Unauthorized" }
+  if (orgId && orgRole === "org:viewer") return { error: "Viewers cannot upload receipts" }
+
+  const ownerId = orgId ?? userId
+  const recentUploads = await prisma.receipt.count({
+    where: {
+      ownerId,
+      source: "receipt_upload",
+      parsedAt: { gte: new Date(Date.now() - 3_600_000) },
+    },
+  })
+  if (recentUploads >= 10) return { error: "Upload limit reached. Try again in an hour." }
 
   const file = formData.get("file") as File | null
   if (!file || file.size === 0) return { error: "No file provided" }
@@ -154,7 +167,6 @@ export async function uploadReceipt(formData: FormData) {
     return { error: "Could not extract an amount from this file. Add it manually." }
   }
 
-  const ownerId = orgId ?? userId
   const ownerType: "user" | "org" = orgId ? "org" : "user"
 
   await prisma.receipt.create({

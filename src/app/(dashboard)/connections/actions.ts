@@ -20,8 +20,9 @@ import { syncLiteLLM, syncLiteLLMIncremental } from "@/lib/sync/litellm"
 // isJsonCreds=true means credValue is already a JSON string (used for Bedrock and LiteLLM)
 // Otherwise credValue is a plain API key string
 export async function createConnection(provider: string, credValue: string, isJsonCreds = false) {
-  const { userId, orgId } = await auth()
+  const { userId, orgId, orgRole } = await auth()
   if (!userId) return { error: "Unauthorized" }
+  if (orgId && orgRole === "org:viewer") return { error: "Viewers cannot add connections" }
 
   const validProviders = ["openai", "anthropic", "gemini", "bedrock", "groq", "mistral", "grok", "kimi", "openrouter", "litellm"]
   if (!validProviders.includes(provider)) return { error: "Invalid provider" }
@@ -32,6 +33,16 @@ export async function createConnection(provider: string, credValue: string, isJs
 
   const credJson = isJsonCreds ? credValue : JSON.stringify({ apiKey: credValue })
 
+  // Read backfill months from settings — fall back to 3 months if not configured
+  let backfillMonths = 3
+  if (orgId) {
+    const orgSettings = await prisma.orgSettings.findUnique({ where: { clerkOrgId: orgId }, select: { backfillMonths: true } })
+    backfillMonths = orgSettings?.backfillMonths ?? 3
+  } else {
+    const userSettings = await prisma.userSettings.findUnique({ where: { clerkUserId: userId }, select: { backfillMonths: true } })
+    backfillMonths = userSettings?.backfillMonths ?? 3
+  }
+
   let connectionId: string
   try {
     const connection = await prisma.providerConnection.create({
@@ -40,7 +51,7 @@ export async function createConnection(provider: string, credValue: string, isJs
         ownerType: ownerType as "user" | "org",
         provider: provider as "openai" | "anthropic" | "gemini" | "bedrock" | "groq" | "mistral" | "grok" | "kimi" | "openrouter" | "litellm",
         encCredentials: encrypt(credJson),
-        backfillFrom: startOfDay(subMonths(new Date(), 3)),
+        backfillFrom: startOfDay(subMonths(new Date(), backfillMonths)),
         backfillStatus: "pending",
       },
     })
@@ -78,16 +89,18 @@ export async function triggerSync(connectionId: string) {
   if (!connection) return { error: "Not found" }
 
   after(async () => {
-    if (connection.provider === "openai") await syncOpenAIIncremental(connectionId)
-    else if (connection.provider === "anthropic") await syncAnthropicIncremental(connectionId)
-    else if (connection.provider === "gemini") await syncGeminiIncremental(connectionId)
-    else if (connection.provider === "bedrock") await syncBedrockIncremental(connectionId)
-    else if (connection.provider === "groq") await syncGroqIncremental(connectionId)
-    else if (connection.provider === "mistral") await syncMistralIncremental(connectionId)
-    else if (connection.provider === "grok") await syncGrokIncremental(connectionId)
-    else if (connection.provider === "kimi") await syncKimiIncremental(connectionId)
-    else if (connection.provider === "openrouter") await syncOpenRouterIncremental(connectionId)
-    else if (connection.provider === "litellm") await syncLiteLLMIncremental(connectionId)
+    // Use full sync for errored/expired connections so the status-active guard in Incremental doesn't bail
+    const fullSync = connection.status !== "active"
+    if (connection.provider === "openai") await (fullSync ? syncOpenAI : syncOpenAIIncremental)(connectionId)
+    else if (connection.provider === "anthropic") await (fullSync ? syncAnthropic : syncAnthropicIncremental)(connectionId)
+    else if (connection.provider === "gemini") await (fullSync ? syncGemini : syncGeminiIncremental)(connectionId)
+    else if (connection.provider === "bedrock") await (fullSync ? syncBedrock : syncBedrockIncremental)(connectionId)
+    else if (connection.provider === "groq") await (fullSync ? syncGroq : syncGroqIncremental)(connectionId)
+    else if (connection.provider === "mistral") await (fullSync ? syncMistral : syncMistralIncremental)(connectionId)
+    else if (connection.provider === "grok") await (fullSync ? syncGrok : syncGrokIncremental)(connectionId)
+    else if (connection.provider === "kimi") await (fullSync ? syncKimi : syncKimiIncremental)(connectionId)
+    else if (connection.provider === "openrouter") await (fullSync ? syncOpenRouter : syncOpenRouterIncremental)(connectionId)
+    else if (connection.provider === "litellm") await (fullSync ? syncLiteLLM : syncLiteLLMIncremental)(connectionId)
   })
 
   revalidatePath("/connections")
@@ -96,8 +109,9 @@ export async function triggerSync(connectionId: string) {
 }
 
 export async function deleteConnection(id: string) {
-  const { userId, orgId } = await auth()
+  const { userId, orgId, orgRole } = await auth()
   if (!userId) return { error: "Unauthorized" }
+  if (orgId && orgRole === "org:viewer") return { error: "Viewers cannot delete connections" }
 
   const ownerId = orgId ?? userId
   await prisma.providerConnection.deleteMany({ where: { id, ownerId } })

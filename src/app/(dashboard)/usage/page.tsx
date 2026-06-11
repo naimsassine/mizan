@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server"
-import { subDays, format, startOfDay } from "date-fns"
+import { subDays, format, startOfDay, eachDayOfInterval } from "date-fns"
 import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 import { SpendChart } from "@/components/dashboard/spend-chart"
 import { UsageTable } from "@/components/usage/usage-table"
 import { TokenEfficiencyTable } from "@/components/usage/token-efficiency-table"
-import { Download } from "lucide-react"
+import { Download, ArrowRight } from "lucide-react"
 
 const providerColors: Record<string, string> = {
   openai: "bg-emerald-50 text-emerald-700 border-emerald-100",
@@ -16,6 +16,11 @@ const providerColors: Record<string, string> = {
   gemini: "bg-blue-50 text-blue-700 border-blue-100",
   bedrock: "bg-yellow-50 text-yellow-700 border-yellow-100",
   groq: "bg-red-50 text-red-700 border-red-100",
+  mistral: "bg-indigo-50 text-indigo-700 border-indigo-100",
+  grok: "bg-zinc-50 text-zinc-700 border-zinc-200",
+  kimi: "bg-sky-50 text-sky-700 border-sky-100",
+  openrouter: "bg-violet-50 text-violet-700 border-violet-100",
+  litellm: "bg-teal-50 text-teal-700 border-teal-100",
 }
 
 const providerLabel: Record<string, string> = {
@@ -24,12 +29,17 @@ const providerLabel: Record<string, string> = {
   gemini: "Gemini",
   bedrock: "Bedrock",
   groq: "Groq",
+  mistral: "Mistral",
+  grok: "Grok",
+  kimi: "Kimi",
+  openrouter: "OpenRouter",
+  litellm: "LiteLLM",
 }
 
 const VALID_RANGES = [7, 30, 90] as const
 type Range = (typeof VALID_RANGES)[number]
 
-const VALID_PROVIDERS = ["openai", "anthropic", "gemini", "bedrock", "groq"] as const
+const VALID_PROVIDERS = ["openai", "anthropic", "gemini", "bedrock", "groq", "mistral", "grok", "kimi", "openrouter", "litellm"] as const
 type ProviderFilter = (typeof VALID_PROVIDERS)[number] | "all"
 
 function formatTokens(n: number): string {
@@ -110,7 +120,20 @@ export default async function UsagePage({
     const d = getDay(key)
     dailyMap.set(key, { ...d, api: d.api + Number(r._sum?.costUsd ?? 0) })
   }
+  const chartTo = new Date()
   for (const r of filteredSubs) {
+    // Spread subscription cost evenly across its billing period rather than a one-day spike.
+    if (r.billingPeriodStart && r.billingPeriodEnd) {
+      const days = eachDayOfInterval({ start: r.billingPeriodStart, end: r.billingPeriodEnd })
+      const perDayAmount = Number(r.amountUsd) / days.length
+      for (const day of days) {
+        if (day < fromDate || day > chartTo) continue
+        const key = format(day, "yyyy-MM-dd")
+        const d = getDay(key)
+        dailyMap.set(key, { ...d, subscription: d.subscription + perDayAmount })
+      }
+      continue
+    }
     const key = format(startOfDay(effectiveDate(r)), "yyyy-MM-dd")
     const d = getDay(key)
     dailyMap.set(key, { ...d, subscription: d.subscription + Number(r.amountUsd) })
@@ -270,6 +293,20 @@ export default async function UsagePage({
         <Card className="rounded-xl border-zinc-100 bg-white shadow-none">
           <CardContent className="py-16 text-center">
             <p className="text-sm text-zinc-500">No API usage data in the last {days} days.</p>
+            <p className="mt-1 text-xs text-zinc-400">
+              {providerFilter !== "all"
+                ? "Try clearing the provider filter or a wider date range."
+                : "Connect a provider to start tracking token usage."}
+            </p>
+            {providerFilter === "all" && (
+              <Link
+                href="/connections"
+                className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3.5 py-2 text-xs font-medium text-white transition-colors hover:bg-zinc-700"
+              >
+                Add connection
+                <ArrowRight className="h-3 w-3" />
+              </Link>
+            )}
           </CardContent>
         </Card>
       ) : (

@@ -123,7 +123,6 @@ export function MobileNav({ unackAlerts = 0 }: { unackAlerts?: number }) {
             {/* Bottom: org switcher */}
             <div className="border-t border-zinc-100 dark:border-zinc-800 p-4 space-y-3">
               <OrganizationSwitcher
-                hidePersonal
                 appearance={{
                   elements: {
                     rootBox: "w-full",

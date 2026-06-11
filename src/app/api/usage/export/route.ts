@@ -5,7 +5,14 @@ import { subDays, format } from "date-fns"
 import type { Provider } from "@/generated/prisma/client"
 
 const VALID_RANGES = [7, 30, 90]
-const VALID_PROVIDERS: Provider[] = ["openai", "anthropic", "gemini", "bedrock", "groq"]
+const VALID_PROVIDERS: Provider[] = ["openai", "anthropic", "gemini", "bedrock", "groq", "mistral", "grok", "kimi", "openrouter", "litellm"]
+
+function csvCell(value: string): string {
+  const escaped = value.replace(/"/g, '""')
+  // Prefix formula-injection characters so spreadsheets don't execute them
+  const safe = /^[=+\-@\t\r]/.test(escaped) ? `'${escaped}` : escaped
+  return `"${safe}"`
+}
 
 export async function GET(req: NextRequest) {
   const { userId, orgId } = await auth()
@@ -37,7 +44,7 @@ export async function GET(req: NextRequest) {
     [
       format(r.date, "yyyy-MM-dd"),
       r.provider,
-      `"${r.model.replace(/"/g, '""')}"`,
+      csvCell(r.model),
       String(Number(r._sum?.inputTokens ?? 0)),
       String(Number(r._sum?.outputTokens ?? 0)),
       Number(r._sum?.costUsd ?? 0).toFixed(6),

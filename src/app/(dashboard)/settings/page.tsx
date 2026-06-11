@@ -4,14 +4,20 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { BackfillMonthsForm } from "@/components/settings/backfill-months-form"
 import { NotificationToggle } from "@/components/settings/notification-toggle"
+import { ThemeSetting } from "@/components/settings/theme-setting"
 import { Info } from "lucide-react"
 
 const PROVIDER_HISTORY_LIMITS: Record<string, string> = {
   OpenAI: "up to 12 months",
   Anthropic: "up to 3 months",
-  "Google Gemini": "up to 6 months",
+  "Google Gemini / Vertex AI": "up to 6 months via Cloud Monitoring",
   "AWS Bedrock": "up to 12 months via Cost Explorer",
-  Groq: "up to 1 month",
+  Groq: "up to 1 month (Enterprise Prometheus)",
+  "Mistral AI": "up to 3 months",
+  "xAI / Grok": "up to 3 months",
+  "Kimi (Moonshot)": "up to 3 months",
+  OpenRouter: "up to 3 months",
+  LiteLLM: "limited by your proxy's log retention",
 }
 
 export default async function SettingsPage() {
@@ -88,18 +94,17 @@ export default async function SettingsPage() {
           </Card>
         )}
 
-        <Card className="rounded-xl border-zinc-100 shadow-none opacity-60">
+        <Card className="rounded-xl border-zinc-100 shadow-none">
           <CardHeader className="px-5 pb-2 pt-5">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-zinc-900">Export preferences</p>
-              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-400">
-                coming soon
-              </span>
-            </div>
+            <p className="text-sm font-medium text-zinc-900">Appearance</p>
             <p className="text-xs text-zinc-500">
-              Configure default CSV export format, currency, and date ranges.
+              Switch between light, dark, and system themes.
             </p>
           </CardHeader>
+          <Separator className="bg-zinc-100" />
+          <CardContent className="px-5 py-4">
+            <ThemeSetting />
+          </CardContent>
         </Card>
       </div>
     </div>

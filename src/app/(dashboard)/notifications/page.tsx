@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server"
-import { subDays, startOfMonth, endOfMonth, startOfDay, format } from "date-fns"
+import { subDays, startOfMonth, endOfMonth, startOfDay, format, differenceInCalendarDays } from "date-fns"
 import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -126,6 +126,8 @@ export default async function NotificationsPage() {
   for (let i = 1; i < dailySeries.length; i++) {
     const prev = dailySeries[i - 1]
     const curr = dailySeries[i]
+    // Only flag adjacent calendar days — skip weekend/holiday gaps to avoid false positives
+    if (differenceInCalendarDays(curr.date, prev.date) !== 1) continue
     if (curr.cost >= MIN_SPEND && prev.cost > 0 && curr.cost >= prev.cost * 2) {
       anomalies.push({
         date: curr.date,

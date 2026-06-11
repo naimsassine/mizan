@@ -212,7 +212,7 @@ export async function syncBedrock(connectionId: string) {
     const isCredErr = err instanceof Error && err.message === "INVALID_CREDENTIALS"
     await prisma.providerConnection.update({
       where: { id: connectionId },
-      data: { status: isCredErr ? "error" : "error", backfillStatus: "failed" },
+      data: { status: isCredErr ? "expired" : "error", backfillStatus: "failed" },
     })
   }
 }
@@ -229,10 +229,10 @@ export async function syncBedrockIncremental(connectionId: string) {
   }
 
   const ownerType = connection.ownerType as "user" | "org"
-  const yesterday = subDays(new Date(), 1)
+  const from = subDays(new Date(), 3)
 
   try {
-    const byDate = await fetchBedrockCosts(credentials.accessKeyId, credentials.secretAccessKey, yesterday, new Date())
+    const byDate = await fetchBedrockCosts(credentials.accessKeyId, credentials.secretAccessKey, from, new Date())
     await upsertBedrockRecords(connectionId, connection.ownerId, ownerType, byDate)
     await prisma.providerConnection.update({
       where: { id: connectionId },

@@ -148,17 +148,19 @@ export async function syncLiteLLMIncremental(connectionId: string) {
   const { baseUrl, apiKey } = credentials
   if (!baseUrl || !apiKey) return
 
-  const yesterday = subDays(new Date(), 1)
   const ownerType = connection.ownerType as "user" | "org"
 
   try {
-    const rows = await fetchSpendLogs(baseUrl, apiKey, yesterday)
-    for (const row of rows) {
-      await upsertRecord({
-        connectionId, ownerId: connection.ownerId, ownerType,
-        date: startOfDay(yesterday), model: row.model,
-        inputTokens: row.inputTokens, outputTokens: row.outputTokens, costUsd: row.costUsd,
-      })
+    const days = eachDayOfInterval({ start: subDays(new Date(), 3), end: subDays(new Date(), 1) })
+    for (const day of days) {
+      const rows = await fetchSpendLogs(baseUrl, apiKey, day)
+      for (const row of rows) {
+        await upsertRecord({
+          connectionId, ownerId: connection.ownerId, ownerType,
+          date: startOfDay(day), model: row.model,
+          inputTokens: row.inputTokens, outputTokens: row.outputTokens, costUsd: row.costUsd,
+        })
+      }
     }
     await prisma.providerConnection.update({
       where: { id: connectionId },

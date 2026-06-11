@@ -4,12 +4,17 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Mail, Receipt } from "lucide-react"
 import { formatDistanceToNow, format } from "date-fns"
+import Link from "next/link"
+import { cn } from "@/lib/utils"
 import { ConnectEmailButton } from "@/components/receipts/connect-email-button"
 import { ScanEmailButton } from "@/components/receipts/scan-email-button"
 import { DisconnectEmailButton } from "@/components/receipts/disconnect-email-button"
 import { ReceiptFormDialog } from "@/components/receipts/receipt-form-dialog"
 import { UploadReceiptButton } from "@/components/receipts/upload-receipt-button"
 import { ReclassifyBadge } from "@/components/receipts/reclassify-badge"
+import { ReceiptDetailDialog } from "@/components/receipts/receipt-detail-dialog"
+
+const PAGE_SIZE = 25
 
 const providerColors: Record<string, string> = {
   openai: "bg-emerald-50 text-emerald-700 border-emerald-100",
@@ -31,23 +36,59 @@ const providerColors: Record<string, string> = {
 export default async function ReceiptsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>
+  searchParams: Promise<{ error?: string; provider?: string; type?: string; page?: string }>
 }) {
   const { userId, orgId } = await auth()
   const ownerId = orgId ?? userId!
-  const { error } = await searchParams
+  const { error, provider: providerParam, type: typeParam, page: pageParam } = await searchParams
 
-  const [emailConnections, receipts] = await Promise.all([
+  const typeFilter: "api" | "subscription" | null =
+    typeParam === "api" || typeParam === "subscription" ? typeParam : null
+  const page = Math.max(1, Number(pageParam) || 1)
+
+  // Distinct providers present (for filter chips)
+  const distinctProviders = await prisma.receipt.findMany({
+    where: { ownerId, provider: { not: null } },
+    select: { provider: true },
+    distinct: ["provider"],
+    orderBy: { provider: "asc" },
+  })
+  const availableProviders = distinctProviders.map((r) => r.provider!).filter(Boolean)
+  const providerFilter = providerParam && availableProviders.includes(providerParam) ? providerParam : null
+
+  const receiptWhere = {
+    ownerId,
+    ...(providerFilter ? { provider: providerFilter } : {}),
+    ...(typeFilter ? { usageType: typeFilter } : {}),
+  }
+
+  const [emailConnections, receipts, totalReceipts] = await Promise.all([
     prisma.emailConnection.findMany({
       where: { ownerId },
       orderBy: { createdAt: "desc" },
     }),
     prisma.receipt.findMany({
-      where: { ownerId },
+      where: receiptWhere,
       orderBy: { createdAt: "desc" },
-      take: 100,
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
     }),
+    prisma.receipt.count({ where: receiptWhere }),
   ])
+
+  const totalPages = Math.max(1, Math.ceil(totalReceipts / PAGE_SIZE))
+  const hasFilters = !!providerFilter || !!typeFilter
+
+  function filterHref(opts: { provider?: string | null; type?: string | null; page?: number }) {
+    const p = new URLSearchParams()
+    const prov = opts.provider === undefined ? providerFilter : opts.provider
+    const typ = opts.type === undefined ? typeFilter : opts.type
+    if (prov) p.set("provider", prov)
+    if (typ) p.set("type", typ)
+    if (opts.page && opts.page > 1) p.set("page", String(opts.page))
+    const qs = p.toString()
+    return qs ? `/receipts?${qs}` : "/receipts"
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-4 md:px-8 py-6 md:py-8">
@@ -135,13 +176,60 @@ export default async function ReceiptsPage({
         </div>
       )}
 
+      {/* Filters */}
+      {(availableProviders.length > 0 || totalReceipts > 0) && (
+        <div className="mb-4 flex flex-wrap items-center gap-1.5">
+          <Link
+            href={filterHref({ provider: null, type: null, page: 1 })}
+            className={cn(
+              "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+              !hasFilters
+                ? "border-zinc-900 bg-zinc-900 text-white"
+                : "border-zinc-200 bg-white text-zinc-500 hover:border-zinc-400 hover:text-zinc-900",
+            )}
+          >
+            All
+          </Link>
+          {(["api", "subscription"] as const).map((t) => (
+            <Link
+              key={t}
+              href={filterHref({ type: typeFilter === t ? null : t, page: 1 })}
+              className={cn(
+                "rounded-full border px-3 py-1 text-xs font-medium capitalize transition-colors",
+                typeFilter === t
+                  ? "border-zinc-900 bg-zinc-900 text-white"
+                  : "border-zinc-200 bg-white text-zinc-500 hover:border-zinc-400 hover:text-zinc-900",
+              )}
+            >
+              {t}
+            </Link>
+          ))}
+          {availableProviders.map((p) => (
+            <Link
+              key={p}
+              href={filterHref({ provider: providerFilter === p ? null : p, page: 1 })}
+              className={cn(
+                "rounded-full border px-3 py-1 text-xs font-medium capitalize transition-colors",
+                providerFilter === p
+                  ? "border-zinc-900 bg-zinc-900 text-white"
+                  : "border-zinc-200 bg-white text-zinc-500 hover:border-zinc-400 hover:text-zinc-900",
+              )}
+            >
+              {p}
+            </Link>
+          ))}
+        </div>
+      )}
+
       {/* Receipts */}
       <Card className="rounded-xl border-zinc-100 bg-white shadow-none">
         <CardHeader className="px-5 pt-5 pb-3">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-zinc-900">Receipts</p>
-            {receipts.length > 0 && (
-              <span className="text-xs text-zinc-400">{receipts.length} total</span>
+            {totalReceipts > 0 && (
+              <span className="text-xs text-zinc-400">
+                {hasFilters ? `${totalReceipts} matching` : `${totalReceipts} total`}
+              </span>
             )}
           </div>
         </CardHeader>
@@ -150,7 +238,9 @@ export default async function ReceiptsPage({
             <div className="flex flex-col items-center gap-3">
               <Receipt className="h-8 w-8 text-zinc-200" strokeWidth={1} />
               <p className="max-w-xs text-sm text-zinc-400">
-                No receipts yet. Connect your email, upload a PDF, or add one manually.
+                {hasFilters
+                  ? "No receipts match these filters."
+                  : "No receipts yet. Connect your email, upload a PDF, or add one manually."}
               </p>
             </div>
           </CardContent>
@@ -188,23 +278,75 @@ export default async function ReceiptsPage({
                           : formatDistanceToNow(r.createdAt, { addSuffix: true })}
                     </p>
                   </div>
-                  <ReceiptFormDialog
-                    receipt={{
-                      id: r.id,
-                      provider: r.provider,
-                      amountUsd: Number(r.amountUsd),
-                      billingPeriodStart: r.billingPeriodStart,
-                      billingPeriodEnd: r.billingPeriodEnd,
-                      invoiceId: r.invoiceId,
-                      usageType: r.usageType,
-                    }}
-                  />
+                  <div className="flex items-center gap-1">
+                    <ReceiptDetailDialog
+                      receipt={{
+                        id: r.id,
+                        provider: r.provider,
+                        amountUsd: Number(r.amountUsd),
+                        billingPeriodStart: r.billingPeriodStart,
+                        billingPeriodEnd: r.billingPeriodEnd,
+                        invoiceId: r.invoiceId,
+                        usageType: r.usageType,
+                        source: r.source,
+                        rawContent: r.rawContent,
+                        parsedAt: r.parsedAt,
+                        createdAt: r.createdAt,
+                      }}
+                    />
+                    <ReceiptFormDialog
+                      receipt={{
+                        id: r.id,
+                        provider: r.provider,
+                        amountUsd: Number(r.amountUsd),
+                        billingPeriodStart: r.billingPeriodStart,
+                        billingPeriodEnd: r.billingPeriodEnd,
+                        invoiceId: r.invoiceId,
+                        usageType: r.usageType,
+                      }}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
           </CardContent>
         )}
       </Card>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-between">
+          <span className="text-xs text-zinc-400">
+            Page {page} of {totalPages}
+          </span>
+          <div className="flex items-center gap-2">
+            {page > 1 ? (
+              <Link
+                href={filterHref({ page: page - 1 })}
+                className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:border-zinc-300 hover:text-zinc-900"
+              >
+                Previous
+              </Link>
+            ) : (
+              <span className="rounded-lg border border-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-300">
+                Previous
+              </span>
+            )}
+            {page < totalPages ? (
+              <Link
+                href={filterHref({ page: page + 1 })}
+                className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:border-zinc-300 hover:text-zinc-900"
+              >
+                Next
+              </Link>
+            ) : (
+              <span className="rounded-lg border border-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-300">
+                Next
+              </span>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

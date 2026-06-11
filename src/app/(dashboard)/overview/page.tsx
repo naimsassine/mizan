@@ -7,12 +7,16 @@ import {
   subMonths,
   getDaysInMonth,
   getDate,
+  setDate,
+  endOfDay,
+  eachDayOfInterval,
   formatDistanceToNow,
 } from "date-fns"
 import { prisma } from "@/lib/prisma"
 import { StatCard } from "@/components/dashboard/stat-card"
 import { SpendChart } from "@/components/dashboard/spend-chart"
 import { ModelBreakdown } from "@/components/dashboard/model-breakdown"
+import { TimeGreeting } from "@/components/dashboard/time-greeting"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Plug, ArrowRight, Key, BarChart2, Info } from "lucide-react"
 import Link from "next/link"
@@ -37,13 +41,20 @@ async function getDashboardData(ownerId: string, chartDays: Range) {
   const monthStart = startOfMonth(now)
   const monthEnd = endOfMonth(now)
   const lastMonthStart = startOfMonth(subMonths(now, 1))
-  const lastMonthEnd = endOfMonth(subMonths(now, 1))
+  // Compare like-for-like: last month up to the *same day of month* as today (MTD vs MTD).
+  const lastMonthSameDay = endOfDay(
+    setDate(subMonths(now, 1), Math.min(getDate(now), getDaysInMonth(subMonths(now, 1)))),
+  )
+  const lastMonthEnd = lastMonthSameDay
+
+  // Fetch receipts from the earliest date we care about (chart window or last month, whichever is earlier)
+  const receiptFrom = chartFrom < lastMonthStart ? chartFrom : lastMonthStart
 
   const [monthlyRecords, chartRecords, lastMonthRecords, connections, allReceipts, lastSyncedConn] =
     await Promise.all([
       prisma.usageRecord.findMany({
         where: { ownerId, date: { gte: monthStart, lte: monthEnd } },
-        select: { costUsd: true, inputTokens: true, outputTokens: true },
+        select: { date: true, costUsd: true, inputTokens: true, outputTokens: true },
       }),
       prisma.usageRecord.findMany({
         where: { ownerId, date: { gte: chartFrom } },
@@ -56,10 +67,16 @@ async function getDashboardData(ownerId: string, chartDays: Range) {
       }),
       prisma.providerConnection.count({ where: { ownerId } }),
       prisma.receipt.findMany({
-        where: { ownerId },
-        select: { amountUsd: true, billingPeriodStart: true, billingPeriodEnd: true, parsedAt: true, createdAt: true, usageType: true },
+        where: {
+          ownerId,
+          OR: [
+            { billingPeriodStart: { gte: receiptFrom } },
+            { billingPeriodStart: null, parsedAt: { gte: receiptFrom } },
+            { billingPeriodStart: null, parsedAt: null, createdAt: { gte: receiptFrom } },
+          ],
+        },
+        select: { amountUsd: true, billingPeriodStart: true, billingPeriodEnd: true, parsedAt: true, createdAt: true, usageType: true, provider: true },
         orderBy: { createdAt: "desc" },
-        take: 500,
       }),
       prisma.providerConnection.findFirst({
         where: { ownerId, lastSyncedAt: { not: null } },
@@ -82,6 +99,19 @@ async function getDashboardData(ownerId: string, chartDays: Range) {
   const apiReceiptMtd = mtdReceipts
     .filter((r) => r.usageType !== "subscription")
     .reduce((s: number, r) => s + Number(r.amountUsd), 0)
+
+  // Detect potential double-counting: same provider has both API polling data and api-type receipts
+  const apiProviders = new Set<string>(
+    (await prisma.usageRecord.findMany({
+      where: { ownerId, date: { gte: monthStart, lte: monthEnd } },
+      select: { provider: true },
+      distinct: ["provider"],
+    })).map((r) => r.provider as string)
+  )
+  const receiptApiProviders = new Set(
+    mtdReceipts.filter((r) => r.usageType !== "subscription" && r.provider).map((r) => r.provider!)
+  )
+  const doubleCountProviders = [...receiptApiProviders].filter((p) => apiProviders.has(p))
   const subscriptionMtd = mtdReceipts
     .filter((r) => r.usageType === "subscription")
     .reduce((s: number, r) => s + Number(r.amountUsd), 0)
@@ -101,8 +131,38 @@ async function getDashboardData(ownerId: string, chartDays: Range) {
 
   const daysElapsed = getDate(now)
   const daysInMonth = getDaysInMonth(now)
-  const dailyAvg = daysElapsed > 0 ? mtdSpend / daysElapsed : 0
+  // Exclude the current (partial) day from the run-rate so a half-finished today
+  // doesn't drag the average down. Fall back to day 1 of the month.
+  const completedDays = Math.max(daysElapsed - 1, 1)
+
+  // Per-day spend totals for completed days this month (API + receipts), for a forecast range.
+  const perDay = new Map<string, number>()
+  const todayKey = format(now, "yyyy-MM-dd")
+  for (const r of monthlyRecords) {
+    const key = format(r.date, "yyyy-MM-dd")
+    if (key === todayKey) continue
+    perDay.set(key, (perDay.get(key) ?? 0) + Number(r.costUsd))
+  }
+  for (const r of mtdReceipts) {
+    const key = format(receiptEffectiveDate(r), "yyyy-MM-dd")
+    if (key === todayKey) continue
+    perDay.set(key, (perDay.get(key) ?? 0) + Number(r.amountUsd))
+  }
+  const completedSpend = Array.from(perDay.values()).reduce((s, v) => s + v, 0)
+  const dailyAvg = completedSpend > 0 ? completedSpend / completedDays : (daysElapsed > 0 ? mtdSpend / daysElapsed : 0)
   const forecastMonthEnd = dailyAvg * daysInMonth
+
+  // Build a ±1σ band around the forecast from daily variance.
+  const dayValues = Array.from(perDay.values())
+  let forecastLow = forecastMonthEnd
+  let forecastHigh = forecastMonthEnd
+  if (dayValues.length >= 3) {
+    const mean = completedSpend / dayValues.length
+    const variance = dayValues.reduce((s, v) => s + (v - mean) ** 2, 0) / dayValues.length
+    const stdErr = Math.sqrt(variance) * Math.sqrt(daysInMonth - completedDays)
+    forecastLow = Math.max(0, forecastMonthEnd - stdErr)
+    forecastHigh = forecastMonthEnd + stdErr
+  }
 
   const dailyMap = new Map<string, { api: number; subscription: number }>()
   const getDay = (key: string) => dailyMap.get(key) ?? { api: 0, subscription: 0 }
@@ -113,6 +173,19 @@ async function getDashboardData(ownerId: string, chartDays: Range) {
     dailyMap.set(key, { ...d, api: d.api + Number(r.costUsd) })
   }
   for (const r of chartReceipts) {
+    // Amortize subscriptions across their billing period (spread evenly per day)
+    // instead of dumping the full amount on a single day, which produced a misleading spike.
+    if (r.usageType === "subscription" && r.billingPeriodStart && r.billingPeriodEnd) {
+      const days = eachDayOfInterval({ start: r.billingPeriodStart, end: r.billingPeriodEnd })
+      const perDayAmount = Number(r.amountUsd) / days.length
+      for (const day of days) {
+        if (day < chartFrom || day > now) continue
+        const key = format(day, "yyyy-MM-dd")
+        const d = getDay(key)
+        dailyMap.set(key, { ...d, subscription: d.subscription + perDayAmount })
+      }
+      continue
+    }
     const key = format(receiptEffectiveDate(r), "yyyy-MM-dd")
     const d = getDay(key)
     if (r.usageType === "subscription") {
@@ -151,10 +224,13 @@ async function getDashboardData(ownerId: string, chartDays: Range) {
     modelRows,
     connections,
     forecastMonthEnd,
+    forecastLow,
+    forecastHigh,
     dailyAvg,
     daysInMonth,
     daysElapsed,
     lastSyncedAt: lastSyncedConn?.lastSyncedAt ?? null,
+    doubleCountProviders,
   }
 }
 
@@ -188,16 +264,17 @@ export default async function OverviewPage({
     modelRows,
     connections,
     forecastMonthEnd,
+    forecastLow,
+    forecastHigh,
     dailyAvg,
     daysInMonth,
     daysElapsed,
     lastSyncedAt,
+    doubleCountProviders,
   } = await getDashboardData(ownerId, chartDays)
+  const hasForecastRange = forecastHigh - forecastLow > 0.01
 
   const firstName = user?.firstName ?? "there"
-  const hour = new Date().getHours()
-  const greeting =
-    hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
 
   function rangeHref(d: number) {
     return `/overview?range=${d}`
@@ -208,10 +285,7 @@ export default async function OverviewPage({
       {/* Header */}
       <div className="mb-8 flex items-end justify-between">
         <div>
-          <h1 className="text-[1.6rem] font-semibold tracking-tight text-zinc-900 leading-tight">
-            {greeting},{" "}
-            <span className="text-zinc-400">{firstName}</span>
-          </h1>
+          <TimeGreeting name={firstName} />
           <p className="mt-1.5 text-sm text-zinc-500">here&apos;s your AI spend at a glance.</p>
         </div>
         {lastSyncedAt && (
@@ -296,7 +370,7 @@ export default async function OverviewPage({
               value={`$${mtdSpend.toFixed(2)}`}
               sub={
                 spendDelta !== null
-                  ? `${spendDelta >= 0 ? "+" : ""}${spendDelta.toFixed(1)}% vs last month`
+                  ? `${spendDelta >= 0 ? "+" : ""}${spendDelta.toFixed(1)}% vs last month (same day)`
                   : "First month of tracking"
               }
               subPositive={spendDelta !== null && spendDelta < 0}
@@ -314,10 +388,25 @@ export default async function OverviewPage({
             <StatCard
               label="Forecast"
               value={`$${forecastMonthEnd.toFixed(2)}`}
-              sub={`$${dailyAvg.toFixed(2)}/day · ${daysInMonth - daysElapsed}d left`}
-              tooltip={`Based on your daily average of $${dailyAvg.toFixed(2)} over ${daysElapsed} day${daysElapsed !== 1 ? "s" : ""} this month, projected to ${daysInMonth} days.`}
+              sub={
+                hasForecastRange
+                  ? `$${forecastLow.toFixed(0)}–$${forecastHigh.toFixed(0)} · ${daysInMonth - daysElapsed}d left`
+                  : `$${dailyAvg.toFixed(2)}/day · ${daysInMonth - daysElapsed}d left`
+              }
+              tooltip={`Projected month-end spend based on your daily average of $${dailyAvg.toFixed(2)} over ${Math.max(daysElapsed - 1, 1)} completed day${Math.max(daysElapsed - 1, 1) !== 1 ? "s" : ""} (today excluded as it's partial).${hasForecastRange ? ` Range reflects day-to-day variance.` : ""}`}
             />
           </div>
+
+          {doubleCountProviders.length > 0 && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+              <span>
+                Possible double-counting: {doubleCountProviders.join(", ")} appear in both API usage records and receipts this month.
+                Consider reclassifying receipts as &ldquo;Subscription&rdquo; on the{" "}
+                <Link href="/receipts" className="underline underline-offset-2">Receipts page</Link>.
+              </span>
+            </div>
+          )}
 
           {(apiSpend > 0 || subscriptionSpend > 0) && (
             <div className="flex items-center gap-4">

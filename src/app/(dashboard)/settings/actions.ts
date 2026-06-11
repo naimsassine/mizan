@@ -14,6 +14,10 @@ export async function saveBackfillMonths(
   const authorizedId = orgId ?? userId
   if (authorizedId !== ownerId) return { error: "Unauthorized" }
 
+  if (!Number.isInteger(months) || months < 1 || months > 36) {
+    return { error: "Backfill months must be between 1 and 36" }
+  }
+
   if (ownerType === "org" && orgId) {
     await prisma.orgSettings.upsert({
       where: { clerkOrgId: orgId },

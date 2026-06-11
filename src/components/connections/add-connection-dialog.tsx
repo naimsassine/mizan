@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Loader2, ExternalLink } from "lucide-react"
 import { createConnection } from "@/app/(dashboard)/connections/actions"
+import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 
 const providers = [
   {
@@ -107,6 +109,7 @@ function validateKey(providerValue: string, key: string): string | null {
 }
 
 export function AddConnectionDialog() {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [provider, setProvider] = useState<string>("")
   const [apiKey, setApiKey] = useState("")
@@ -176,6 +179,9 @@ export function AddConnectionDialog() {
       } else {
         setOpen(false)
         reset()
+        const label = providers.find((p) => p.value === provider)?.label ?? provider
+        toast.success(`${label} connected`, { description: "Backfill started — syncing up to 3 months of usage." })
+        router.refresh()
       }
     })
   }

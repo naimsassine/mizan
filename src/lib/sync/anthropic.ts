@@ -26,9 +26,10 @@ const PRICING: Record<string, { input: number; output: number }> = {
 
 function modelPrice(model: string): { input: number; output: number } | null {
   if (PRICING[model]) return PRICING[model]
-  // prefix match: "claude-opus-4-8-20260101" → claude-opus-4-8
-  for (const [key, p] of Object.entries(PRICING)) {
-    if (model.startsWith(key)) return p
+  // longest-prefix match: "claude-opus-4-8-20260101" → "claude-opus-4-8" not "claude-opus-4"
+  const sortedKeys = Object.keys(PRICING).sort((a, b) => b.length - a.length)
+  for (const key of sortedKeys) {
+    if (model.startsWith(key)) return PRICING[key]
   }
   console.warn(`[mizan] Unknown Anthropic model pricing: "${model}" — cost stored as $0`)
   return null
@@ -58,32 +59,41 @@ async function fetchAnthropicUsage(
   from: Date,
   to: Date
 ): Promise<boolean> {
-  const url = new URL("https://api.anthropic.com/v1/usage")
-  url.searchParams.set("start_date", format(startOfDay(from), "yyyy-MM-dd"))
-  url.searchParams.set("end_date", format(startOfDay(to), "yyyy-MM-dd"))
+  let afterId: string | undefined
 
-  const res = await fetch(url.toString(), {
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-  })
+  while (true) {
+    const url = new URL("https://api.anthropic.com/v1/usage")
+    url.searchParams.set("start_date", format(startOfDay(from), "yyyy-MM-dd"))
+    url.searchParams.set("end_date", format(startOfDay(to), "yyyy-MM-dd"))
+    if (afterId) url.searchParams.set("after_id", afterId)
 
-  if (res.status === 401 || res.status === 403) return false
-  if (!res.ok) throw new Error(`Anthropic Usage API ${res.status}`)
+    const res = await fetch(url.toString(), {
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+    })
 
-  const payload: { data?: UsageRow[]; usage?: UsageRow[] } = await res.json()
-  const rows = payload.data ?? payload.usage ?? []
+    if (res.status === 401 || res.status === 403) return false
+    // Endpoint unavailable — treat as no data rather than a hard error
+    if (res.status === 404 || res.status === 405) return true
+    if (!res.ok) throw new Error(`Anthropic Usage API ${res.status}`)
 
-  for (const row of rows) {
-    if (!row.model) continue
-    const inputTokens = row.input_tokens ?? row.usage?.input_tokens ?? 0
-    const outputTokens = row.output_tokens ?? row.usage?.output_tokens ?? 0
-    if (inputTokens === 0 && outputTokens === 0) continue
+    const payload: { data?: UsageRow[]; usage?: UsageRow[]; has_more?: boolean; last_id?: string } = await res.json()
+    const rows = payload.data ?? payload.usage ?? []
 
-    const date = row.date ? startOfDay(new Date(row.date)) : startOfDay(from)
+    for (const row of rows) {
+      if (!row.model) continue
+      const inputTokens = row.input_tokens ?? row.usage?.input_tokens ?? 0
+      const outputTokens = row.output_tokens ?? row.usage?.output_tokens ?? 0
+      if (inputTokens === 0 && outputTokens === 0) continue
 
-    await upsertRecord({ connectionId, ownerId, ownerType, date, model: row.model, inputTokens, outputTokens, raw: row })
+      const date = row.date ? startOfDay(new Date(row.date)) : startOfDay(from)
+      await upsertRecord({ connectionId, ownerId, ownerType, date, model: row.model, inputTokens, outputTokens, raw: row })
+    }
+
+    if (!payload.has_more || !payload.last_id) break
+    afterId = payload.last_id
   }
 
   return true
@@ -145,7 +155,7 @@ export async function syncAnthropic(connectionId: string) {
     if (!ok) {
       await prisma.providerConnection.update({
         where: { id: connectionId },
-        data: { status: "error", backfillStatus: "failed" },
+        data: { status: "expired", backfillStatus: "failed" },
       })
       return
     }
@@ -174,11 +184,12 @@ export async function syncAnthropicIncremental(connectionId: string) {
     return
   }
 
+  const from = subDays(new Date(), 3)
   const yesterday = subDays(new Date(), 1)
   const ownerType = connection.ownerType as "user" | "org"
 
   try {
-    await fetchAnthropicUsage(credentials.apiKey, connectionId, connection.ownerId, ownerType, yesterday, yesterday)
+    await fetchAnthropicUsage(credentials.apiKey, connectionId, connection.ownerId, ownerType, from, yesterday)
     await prisma.providerConnection.update({
       where: { id: connectionId },
       data: { lastSyncedAt: new Date() },

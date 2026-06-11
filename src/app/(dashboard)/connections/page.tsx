@@ -7,6 +7,7 @@ import { SyncButton } from "@/components/connections/sync-button"
 import { SetGcpProjectButton } from "@/components/connections/set-gcp-project-button"
 import { ConnectionSparkline } from "@/components/connections/connection-sparkline"
 import { SyncPoller } from "@/components/connections/sync-poller"
+import { ProviderIcon } from "@/components/provider-icon"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatDistanceToNow } from "date-fns"
@@ -123,6 +124,19 @@ export default async function ConnectionsPage({
     .filter((c) => c.backfillStatus === "pending" || c.backfillStatus === "in_progress")
     .map((c) => c.id)
 
+  // Stalled: in_progress for > 10 min with no data yet (after() hit serverless limit)
+  const STALL_MS = 10 * 60 * 1000
+  const stalledIds = new Set(
+    connections
+      .filter(
+        (c) =>
+          (c.backfillStatus === "in_progress") &&
+          !c.lastSyncedAt &&
+          Date.now() - c.createdAt.getTime() > STALL_MS,
+      )
+      .map((c) => c.id),
+  )
+
   return (
     <div className="mx-auto max-w-3xl px-4 md:px-8 py-6 md:py-8">
       {/* SyncPoller: auto-refreshes while any connection is syncing */}
@@ -183,14 +197,23 @@ export default async function ConnectionsPage({
           {connections.map((conn) => {
             const needsGcpProject = conn.provider === "gemini" && conn.gcpProjectId === "PENDING"
             const isError = conn.status === "error"
+            const isStalled = stalledIds.has(conn.id)
             const isSyncing =
               (conn.backfillStatus === "pending" || conn.backfillStatus === "in_progress") &&
-              !conn.lastSyncedAt
+              !conn.lastSyncedAt &&
+              !isStalled
 
             const sparkData = getSparklineData(conn.id)
             const total7d = sparkData.reduce((a, b) => a + b, 0)
             const { pct, direction } = computeTrend(sparkData)
             const has7dData = total7d > 0
+
+            const isActiveNoData =
+              conn.status === "active" &&
+              !isSyncing &&
+              !isStalled &&
+              !!conn.lastSyncedAt &&
+              !has7dData
 
             return (
               <Card
@@ -204,14 +227,20 @@ export default async function ConnectionsPage({
               >
                 <CardContent className="px-5 py-4">
                   <div className="flex items-center justify-between gap-4">
-                    {/* Left: provider name + sync status */}
-                    <div className="min-w-0">
+                    {/* Left: provider icon + name + sync status */}
+                    <div className="flex min-w-0 items-center gap-3">
+                      <ProviderIcon provider={conn.provider} />
+                      <div className="min-w-0">
                       <p className="text-sm font-medium text-zinc-900">
                         {providerLabel[conn.provider] ?? conn.provider}
                       </p>
                       {needsGcpProject ? (
                         <p className="mt-0.5 text-xs text-zinc-400">
                           Project ID required to start syncing
+                        </p>
+                      ) : isStalled ? (
+                        <p className="mt-0.5 text-xs text-amber-600">
+                          Sync may have stalled — click Sync to retry
                         </p>
                       ) : isSyncing ? (
                         <span className="mt-0.5 flex items-center gap-1.5">
@@ -229,6 +258,7 @@ export default async function ConnectionsPage({
                             : "Never synced"}
                         </p>
                       )}
+                      </div>
                     </div>
 
                     {/* Center: sparkline + 7d spend + trend — hidden on mobile */}
@@ -294,6 +324,17 @@ export default async function ConnectionsPage({
                       <span>
                         {errorHint[conn.provider] ?? "Check your credentials and try re-syncing."}{" "}
                         Use the sync button to retry, or delete and re-add this connection.
+                      </span>
+                    </div>
+                  )}
+
+                  {/* No-data hint: synced successfully but returned zero records */}
+                  {isActiveNoData && (
+                    <div className="mt-3 flex items-start gap-2 rounded-lg bg-zinc-50 px-3 py-2.5 text-xs text-zinc-500">
+                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+                      <span>
+                        No usage data found in the last 7 days. Check that your API key has billing
+                        read access, or that there is recent usage on this account.
                       </span>
                     </div>
                   )}

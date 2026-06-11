@@ -54,9 +54,9 @@ export async function scanEmails(
     messageIds = await gmail.searchMessages(accessToken, `(${GMAIL_QUERY}) after:${since}`, 100)
   }
 
-  // Skip already-processed IDs
+  // Skip already-processed IDs — scope by ownerId so reconnects don't reimport
   const existing = await prisma.receipt.findMany({
-    where: { emailConnectionId, externalId: { not: null } },
+    where: { ownerId: connection.ownerId, externalId: { not: null } },
     select: { externalId: true },
   })
   const seen = new Set(existing.map((r) => r.externalId!))
