@@ -30,7 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         className={`${geist.variable} ${geistMono.variable} h-full`}
         suppressHydrationWarning
       >
-        <body className="h-full font-sans antialiased">
+        <body className="h-full font-sans antialiased" suppressHydrationWarning>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             <TooltipProvider>{children}</TooltipProvider>
             <Toaster position="bottom-right" toastOptions={{ className: "text-xs font-sans" }} />
