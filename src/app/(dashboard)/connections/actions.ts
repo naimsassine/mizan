@@ -6,6 +6,7 @@ import { after } from "next/server"
 import { subMonths, startOfDay } from "date-fns"
 import { prisma } from "@/lib/prisma"
 import { encrypt } from "@/lib/encrypt"
+import { revalidateOwnerSpend } from "@/lib/cache"
 import { syncOpenAI, syncOpenAIIncremental } from "@/lib/sync/openai"
 import { syncAnthropic, syncAnthropicIncremental } from "@/lib/sync/anthropic"
 import { syncGemini, syncGeminiIncremental } from "@/lib/sync/gemini"
@@ -69,6 +70,8 @@ export async function createConnection(provider: string, credValue: string, isJs
     else if (provider === "grok") await syncGrok(connectionId)
     else if (provider === "openrouter") await syncOpenRouter(connectionId)
     else if (provider === "litellm") await syncLiteLLM(connectionId)
+    // Backfill wrote new usage rows — drop cached aggregates so dashboards reflect them.
+    revalidateOwnerSpend(ownerId)
   })
 
   revalidatePath("/connections")
@@ -98,6 +101,7 @@ export async function triggerSync(connectionId: string) {
     else if (connection.provider === "grok") await (fullSync ? syncGrok : syncGrokIncremental)(connectionId)
     else if (connection.provider === "openrouter") await (fullSync ? syncOpenRouter : syncOpenRouterIncremental)(connectionId)
     else if (connection.provider === "litellm") await (fullSync ? syncLiteLLM : syncLiteLLMIncremental)(connectionId)
+    revalidateOwnerSpend(ownerId)
   })
 
   revalidatePath("/connections")
@@ -112,6 +116,8 @@ export async function deleteConnection(id: string) {
 
   const ownerId = orgId ?? userId
   await prisma.providerConnection.deleteMany({ where: { id, ownerId } })
+  // Cascade removed this connection's usage rows — refresh cached aggregates.
+  revalidateOwnerSpend(ownerId)
 
   revalidatePath("/connections")
   revalidatePath("/overview")
@@ -136,6 +142,7 @@ export async function updateGcpProject(connectionId: string, projectId: string) 
   after(async () => {
     const { syncGemini } = await import("@/lib/sync/gemini")
     await syncGemini(connectionId)
+    revalidateOwnerSpend(ownerId)
   })
 
   revalidatePath("/connections")

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { revalidateOwnerSpend } from "@/lib/cache"
 
 export const maxDuration = 300
 import { syncOpenAIIncremental } from "@/lib/sync/openai"
@@ -58,6 +59,10 @@ export async function GET(req: Request) {
   ]
   const ownerIds = [...new Set(allOwnerIds)]
   await Promise.allSettled(ownerIds.map(checkBudgetAlerts))
+
+  // Nightly sync wrote usage rows / receipts / alerts — bust each owner's cached aggregates so
+  // the next dashboard load reflects them instead of waiting out the revalidate window.
+  for (const ownerId of ownerIds) revalidateOwnerSpend(ownerId)
 
   // Send weekly digests to users whose chosen day matches today
   const todayDow = new Date().getDay() // 0=Sun … 6=Sat

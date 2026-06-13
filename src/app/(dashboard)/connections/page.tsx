@@ -1,6 +1,8 @@
 import { auth } from "@clerk/nextjs/server"
+import { unstable_cache } from "next/cache"
 import { subDays, startOfDay, format } from "date-fns"
 import { prisma } from "@/lib/prisma"
+import { ownerUsageTag } from "@/lib/cache"
 import { AddConnectionDialog } from "@/components/connections/add-connection-dialog"
 import { DeleteConnectionButton } from "@/components/connections/delete-connection-button"
 import { SyncButton } from "@/components/connections/sync-button"
@@ -56,6 +58,32 @@ const errorHint: Record<string, string> = {
   litellm: "Check your LiteLLM proxy URL and API key.",
 }
 
+// Last-7-day per-connection spend for the sparklines. Derived from usage records, so cache it
+// (tag-invalidated on sync). The connection list itself stays uncached so the SyncPoller sees
+// live backfill status.
+function getConnectionSparklines(ownerId: string) {
+  return unstable_cache(
+    () => loadConnectionSparklines(ownerId),
+    ["connection-sparklines", ownerId],
+    { tags: [ownerUsageTag(ownerId)], revalidate: 300 },
+  )()
+}
+
+async function loadConnectionSparklines(ownerId: string) {
+  const sevenDaysAgo = subDays(startOfDay(new Date()), 7)
+  const rows = await prisma.usageRecord.groupBy({
+    by: ["connectionId", "date"],
+    where: { ownerId, date: { gte: sevenDaysAgo } },
+    _sum: { costUsd: true },
+    orderBy: [{ date: "asc" }],
+  })
+  return rows.map((r) => ({
+    connectionId: r.connectionId,
+    dateKey: format(r.date, "yyyy-MM-dd"),
+    cost: Number(r._sum.costUsd ?? 0),
+  }))
+}
+
 function computeTrend(data: number[]): { pct: number; direction: "up" | "down" | "flat" } {
   const first = (data[0] + data[1] + data[2]) / 3
   const last = (data[4] + data[5] + data[6]) / 3
@@ -75,14 +103,12 @@ export default async function ConnectionsPage({
   const ownerId = orgId ?? userId!
   const { error, gcp_conn } = await searchParams
 
-  const sevenDaysAgo = subDays(startOfDay(new Date()), 7)
-
   // Build last-7-days date keys oldest → newest
   const dayKeys = Array.from({ length: 7 }, (_, i) =>
     format(subDays(startOfDay(new Date()), 6 - i), "yyyy-MM-dd"),
   )
 
-  const [connections, sparklineRecords] = await Promise.all([
+  const [connections, sparklineRows] = await Promise.all([
     prisma.providerConnection.findMany({
       where: { ownerId },
       orderBy: { createdAt: "desc" },
@@ -96,20 +122,14 @@ export default async function ConnectionsPage({
         createdAt: true,
       },
     }),
-    prisma.usageRecord.groupBy({
-      by: ["connectionId", "date"],
-      where: { ownerId, date: { gte: sevenDaysAgo } },
-      _sum: { costUsd: true },
-      orderBy: [{ date: "asc" }],
-    }),
+    getConnectionSparklines(ownerId),
   ])
 
   // Build sparkline map: connectionId → Map<dateKey, cost>
   const rawMap = new Map<string, Map<string, number>>()
-  for (const r of sparklineRecords) {
-    const key = format(r.date, "yyyy-MM-dd")
+  for (const r of sparklineRows) {
     if (!rawMap.has(r.connectionId)) rawMap.set(r.connectionId, new Map())
-    rawMap.get(r.connectionId)!.set(key, Number(r._sum.costUsd ?? 0))
+    rawMap.get(r.connectionId)!.set(r.dateKey, r.cost)
   }
 
   function getSparklineData(connId: string) {

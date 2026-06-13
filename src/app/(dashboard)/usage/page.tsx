@@ -1,8 +1,12 @@
 import { auth } from "@clerk/nextjs/server"
+import { Suspense } from "react"
+import { unstable_cache } from "next/cache"
 import { subDays, format, startOfDay, eachDayOfInterval } from "date-fns"
 import { prisma } from "@/lib/prisma"
+import { ownerUsageTag, ownerReceiptsTag } from "@/lib/cache"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { SpendChart } from "@/components/dashboard/spend-chart"
@@ -46,23 +50,16 @@ function formatTokens(n: number): string {
   return String(n)
 }
 
-export default async function UsagePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ range?: string; provider?: string }>
-}) {
-  const { userId, orgId } = await auth()
-  const ownerId = orgId ?? userId!
+// Cached per (owner, range, provider). Tag-invalidated on any usage/receipt write.
+function getUsageData(ownerId: string, days: Range, providerFilter: ProviderFilter) {
+  return unstable_cache(
+    () => loadUsageData(ownerId, days, providerFilter),
+    ["usage-data", ownerId, String(days), providerFilter],
+    { tags: [ownerUsageTag(ownerId), ownerReceiptsTag(ownerId)], revalidate: 300 },
+  )()
+}
 
-  const { range: rangeParam, provider: providerParam } = await searchParams
-  const days: Range = (VALID_RANGES as readonly number[]).includes(Number(rangeParam))
-    ? (Number(rangeParam) as Range)
-    : 30
-  const providerFilter: ProviderFilter =
-    (VALID_PROVIDERS as readonly string[]).includes(providerParam ?? "")
-      ? (providerParam as ProviderFilter)
-      : "all"
-
+async function loadUsageData(ownerId: string, days: Range, providerFilter: ProviderFilter) {
   const fromDate = subDays(new Date(), days)
 
   const [records, subscriptionReceipts] = await Promise.all([
@@ -77,24 +74,24 @@ export default async function UsagePage({
       orderBy: [{ date: "desc" }],
     }),
     prisma.receipt.findMany({
-          where: {
-            ownerId,
-            usageType: "subscription",
-            ...(providerFilter !== "all" ? { provider: providerFilter } : {}),
-          },
-          select: {
-            id: true,
-            provider: true,
-            amountUsd: true,
-            billingPeriodStart: true,
-            billingPeriodEnd: true,
-            invoiceId: true,
-            parsedAt: true,
-            createdAt: true,
-          },
-          orderBy: { createdAt: "desc" },
-          take: 200,
-        }),
+      where: {
+        ownerId,
+        usageType: "subscription",
+        ...(providerFilter !== "all" ? { provider: providerFilter } : {}),
+      },
+      select: {
+        id: true,
+        provider: true,
+        amountUsd: true,
+        billingPeriodStart: true,
+        billingPeriodEnd: true,
+        invoiceId: true,
+        parsedAt: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    }),
   ])
 
   // Filter subscriptions to the selected date window using effective date
@@ -106,10 +103,9 @@ export default async function UsagePage({
   const apiCost = records.reduce((s, r) => s + Number(r._sum?.costUsd ?? 0), 0)
   const subCost = filteredSubs.reduce((s, r) => s + Number(r.amountUsd), 0)
   const totalCost = apiCost + subCost
-  const totalTokens = records.reduce(
-    (s, r) => s + Number(r._sum?.inputTokens ?? 0) + Number(r._sum?.outputTokens ?? 0),
-    0
-  )
+  const totalInputTokens = records.reduce((s, r) => s + Number(r._sum?.inputTokens ?? 0), 0)
+  const totalOutputTokens = records.reduce((s, r) => s + Number(r._sum?.outputTokens ?? 0), 0)
+  const totalTokens = totalInputTokens + totalOutputTokens
 
   // Build stacked chart data
   const dailyMap = new Map<string, { api: number; subscription: number }>()
@@ -156,6 +152,59 @@ export default async function UsagePage({
     ...e,
   }))
 
+  // Pre-flatten table rows to plain numbers so the result serializes into the data cache.
+  const tableRows = records.map((r) => ({
+    date: r.date,
+    model: r.model,
+    provider: r.provider,
+    inputTokens: Number(r._sum.inputTokens ?? 0),
+    outputTokens: Number(r._sum.outputTokens ?? 0),
+    costUsd: Number(r._sum.costUsd ?? 0),
+  }))
+
+  const subs = filteredSubs.map((r) => ({
+    id: r.id,
+    provider: r.provider,
+    amountUsd: Number(r.amountUsd),
+    periodLabel:
+      r.billingPeriodStart && r.billingPeriodEnd
+        ? `${format(r.billingPeriodStart, "MMM d")} – ${format(r.billingPeriodEnd, "MMM d, yyyy")}`
+        : format(effectiveDate(r), "MMM d, yyyy"),
+    invoiceId: r.invoiceId,
+  }))
+
+  return {
+    apiCost,
+    subCost,
+    totalCost,
+    totalTokens,
+    totalInputTokens,
+    totalOutputTokens,
+    recordCount: records.length,
+    chartData,
+    efficiencyRows,
+    tableRows,
+    subs,
+  }
+}
+
+export default async function UsagePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string; provider?: string }>
+}) {
+  const { userId, orgId } = await auth()
+  const ownerId = orgId ?? userId!
+
+  const { range: rangeParam, provider: providerParam } = await searchParams
+  const days: Range = (VALID_RANGES as readonly number[]).includes(Number(rangeParam))
+    ? (Number(rangeParam) as Range)
+    : 30
+  const providerFilter: ProviderFilter =
+    (VALID_PROVIDERS as readonly string[]).includes(providerParam ?? "")
+      ? (providerParam as ProviderFilter)
+      : "all"
+
   function rangeHref(d: number) {
     const params = new URLSearchParams()
     params.set("range", String(d))
@@ -170,6 +219,8 @@ export default async function UsagePage({
     return `/usage?${params}`
   }
 
+  // Header + filters depend only on the URL, so they render instantly. Only the data sections
+  // (cards, chart, tables) stream in behind the skeleton.
   return (
     <div className="mx-auto max-w-5xl px-4 md:px-8 py-6 md:py-8">
       {/* Header */}
@@ -236,6 +287,41 @@ export default async function UsagePage({
         )}
       </div>
 
+      <Suspense
+        key={`${days}:${providerFilter}`}
+        fallback={<UsageDataSkeleton />}
+      >
+        <UsageData ownerId={ownerId} days={days} providerFilter={providerFilter} />
+      </Suspense>
+    </div>
+  )
+}
+
+async function UsageData({
+  ownerId,
+  days,
+  providerFilter,
+}: {
+  ownerId: string
+  days: Range
+  providerFilter: ProviderFilter
+}) {
+  const {
+    apiCost,
+    subCost,
+    totalCost,
+    totalTokens,
+    totalInputTokens,
+    totalOutputTokens,
+    recordCount,
+    chartData,
+    efficiencyRows,
+    tableRows,
+    subs,
+  } = await getUsageData(ownerId, days, providerFilter)
+
+  return (
+    <>
       {/* Summary cards */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card className="rounded-xl border-zinc-100 bg-white shadow-none transition-shadow duration-200 hover:shadow-sm">
@@ -276,7 +362,7 @@ export default async function UsagePage({
       </div>
 
       {/* Spend chart */}
-      {records.length > 0 && (
+      {recordCount > 0 && (
         <Card className="mb-6 rounded-xl border-zinc-100 bg-white shadow-none">
           <CardHeader className="px-5 pb-2 pt-5">
             <p className="text-sm font-medium text-zinc-900">Spend — last {days} days</p>
@@ -288,7 +374,7 @@ export default async function UsagePage({
       )}
 
       {/* API usage table */}
-      {records.length === 0 ? (
+      {recordCount === 0 ? (
         <Card className="rounded-xl border-zinc-100 bg-white shadow-none">
           <CardContent className="py-16 text-center">
             <p className="text-sm text-zinc-500">No API usage data in the last {days} days.</p>
@@ -311,17 +397,11 @@ export default async function UsagePage({
       ) : (
         <Card className="overflow-hidden rounded-xl border-zinc-100 bg-white shadow-none">
           <UsageTable
-            rows={records.map((r) => ({
-              date: r.date,
-              model: r.model,
-              provider: r.provider,
-              inputTokens: Number(r._sum.inputTokens ?? 0),
-              outputTokens: Number(r._sum.outputTokens ?? 0),
-              costUsd: Number(r._sum.costUsd ?? 0),
-            }))}
+            // Rehydrate date in case the data cache serialized it to a string.
+            rows={tableRows.map((r) => ({ ...r, date: new Date(r.date) }))}
             totalCost={apiCost}
-            totalInputTokens={records.reduce((s, r) => s + Number(r._sum.inputTokens ?? 0), 0)}
-            totalOutputTokens={records.reduce((s, r) => s + Number(r._sum.outputTokens ?? 0), 0)}
+            totalInputTokens={totalInputTokens}
+            totalOutputTokens={totalOutputTokens}
             providerColors={providerColors}
           />
         </Card>
@@ -341,7 +421,7 @@ export default async function UsagePage({
       )}
 
       {/* Subscriptions section */}
-      {filteredSubs.length > 0 && (
+      {subs.length > 0 && (
         <Card className="mt-6 overflow-hidden rounded-xl border-zinc-100 bg-white shadow-none">
           <CardHeader className="px-5 pb-3 pt-5">
             <div className="flex items-center justify-between">
@@ -360,13 +440,9 @@ export default async function UsagePage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-50">
-                {filteredSubs.map((r) => (
+                {subs.map((r) => (
                   <tr key={r.id} className="transition-colors duration-100 hover:bg-zinc-50/70">
-                    <td className="px-5 py-3 text-xs text-zinc-500">
-                      {r.billingPeriodStart && r.billingPeriodEnd
-                        ? `${format(r.billingPeriodStart, "MMM d")} – ${format(r.billingPeriodEnd, "MMM d, yyyy")}`
-                        : format(effectiveDate(r), "MMM d, yyyy")}
-                    </td>
+                    <td className="px-5 py-3 text-xs text-zinc-500">{r.periodLabel}</td>
                     <td className="px-5 py-3">
                       {r.provider ? (
                         <Badge variant="outline" className={`h-4 px-1.5 py-0 text-[10px] capitalize ${providerColors[r.provider] ?? "bg-zinc-50 text-zinc-600 border-zinc-200"}`}>
@@ -378,7 +454,7 @@ export default async function UsagePage({
                     </td>
                     <td className="px-5 py-3 text-xs text-zinc-400">{r.invoiceId ?? "—"}</td>
                     <td className="px-5 py-3 text-right font-mono text-xs font-semibold tabular-nums text-zinc-900">
-                      ${Number(r.amountUsd).toFixed(2)}
+                      ${r.amountUsd.toFixed(2)}
                     </td>
                   </tr>
                 ))}
@@ -387,6 +463,45 @@ export default async function UsagePage({
           </div>
         </Card>
       )}
-    </div>
+    </>
+  )
+}
+
+function UsageDataSkeleton() {
+  return (
+    <>
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Card key={i} className="rounded-xl border-zinc-100 shadow-none">
+            <CardContent className="p-5">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="mt-2.5 h-7 w-28" />
+              <Skeleton className="mt-1.5 h-3 w-16" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <Card className="overflow-hidden rounded-xl border-zinc-100 shadow-none">
+        <div className="border-b border-zinc-100 px-5 py-3">
+          <div className="flex gap-8">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-3 w-16" />
+            ))}
+          </div>
+        </div>
+        <div className="divide-y divide-zinc-50">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-8 px-5 py-3">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-3 w-32" />
+              <Skeleton className="h-4 w-16 rounded-full" />
+              <Skeleton className="ml-auto h-3 w-12" />
+              <Skeleton className="h-3 w-12" />
+              <Skeleton className="h-3 w-16" />
+            </div>
+          ))}
+        </div>
+      </Card>
+    </>
   )
 }

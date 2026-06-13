@@ -6,6 +6,7 @@ import { after } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { scanEmails } from "@/lib/scan-emails"
 import { parseFileAsReceipt } from "@/lib/parse-file-receipt"
+import { revalidateOwnerSpend } from "@/lib/cache"
 
 export async function disconnectEmailAccount(id: string) {
   const { userId, orgId } = await auth()
@@ -30,6 +31,8 @@ export async function triggerEmailScan(emailConnectionId: string) {
 
   after(async () => {
     await scanEmails(emailConnectionId)
+    // Scan may have imported new receipts — refresh cached spend aggregates.
+    revalidateOwnerSpend(ownerId)
   })
 
   revalidatePath("/receipts")
@@ -68,6 +71,7 @@ export async function createReceipt(data: {
     },
   })
 
+  revalidateOwnerSpend(ownerId)
   revalidatePath("/receipts")
   revalidatePath("/overview")
   return { error: null }
@@ -102,6 +106,7 @@ export async function updateReceipt(
     },
   })
 
+  revalidateOwnerSpend(ownerId)
   revalidatePath("/receipts")
   revalidatePath("/overview")
   return { error: null }
@@ -117,6 +122,7 @@ export async function reclassifyReceipt(id: string, usageType: "api" | "subscrip
     data: { usageType },
   })
 
+  revalidateOwnerSpend(ownerId)
   revalidatePath("/receipts")
   revalidatePath("/overview")
   return { error: null }
@@ -130,6 +136,7 @@ export async function deleteReceipt(id: string) {
   const ownerId = orgId ?? userId
   await prisma.receipt.deleteMany({ where: { id, ownerId } })
 
+  revalidateOwnerSpend(ownerId)
   revalidatePath("/receipts")
   revalidatePath("/overview")
   return { error: null }
@@ -185,6 +192,7 @@ export async function uploadReceipt(formData: FormData) {
     },
   })
 
+  revalidateOwnerSpend(ownerId)
   revalidatePath("/receipts")
   revalidatePath("/overview")
   return { error: null }

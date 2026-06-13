@@ -3,6 +3,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
+import { revalidateOwnerAlerts } from "@/lib/cache"
 
 const VALID_PROVIDERS = ["openai", "anthropic", "gemini", "bedrock", "groq", "mistral", "grok", "openrouter", "litellm"]
 
@@ -69,6 +70,8 @@ export async function acknowledgeAlert(id: string) {
     data: { acknowledgedAt: new Date() },
   })
 
+  // Sidebar badge count is cached under the alerts tag — refresh it.
+  revalidateOwnerAlerts(ownerId)
   revalidatePath("/notifications")
   return { error: null }
 }

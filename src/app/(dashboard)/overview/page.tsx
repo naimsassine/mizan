@@ -1,4 +1,6 @@
 import { auth, currentUser } from "@clerk/nextjs/server"
+import { Suspense } from "react"
+import { unstable_cache } from "next/cache"
 import {
   subDays,
   format,
@@ -13,6 +15,8 @@ import {
   formatDistanceToNow,
 } from "date-fns"
 import { prisma } from "@/lib/prisma"
+import { ownerUsageTag, ownerReceiptsTag } from "@/lib/cache"
+import OverviewLoading from "./loading"
 import { StatCard } from "@/components/dashboard/stat-card"
 import { SpendChart } from "@/components/dashboard/spend-chart"
 import { ModelBreakdown } from "@/components/dashboard/model-breakdown"
@@ -36,7 +40,17 @@ function receiptEffectiveDate(r: {
   return r.billingPeriodStart ?? r.billingPeriodEnd ?? r.parsedAt ?? r.createdAt
 }
 
-async function getDashboardData(ownerId: string, chartDays: Range) {
+// Cached per (owner, range). Tag-invalidated on any usage/receipt write so dashboards stay fresh
+// after a sync without re-running the full aggregate fan-out on every navigation.
+function getDashboardData(ownerId: string, chartDays: Range) {
+  return unstable_cache(
+    () => loadDashboardData(ownerId, chartDays),
+    ["overview-dashboard", ownerId, String(chartDays)],
+    { tags: [ownerUsageTag(ownerId), ownerReceiptsTag(ownerId)], revalidate: 300 },
+  )()
+}
+
+async function loadDashboardData(ownerId: string, chartDays: Range) {
   const now = new Date()
   const chartFrom = subDays(now, chartDays)
   const monthStart = startOfMonth(now)
@@ -247,7 +261,6 @@ export default async function OverviewPage({
   searchParams: Promise<{ range?: string }>
 }) {
   const { userId, orgId } = await auth()
-  const user = await currentUser()
   const ownerId = orgId ?? userId!
 
   const { range: rangeParam } = await searchParams
@@ -255,6 +268,17 @@ export default async function OverviewPage({
     ? (Number(rangeParam) as Range)
     : 30
 
+  // Shell returns immediately; the data-dependent body streams in behind the skeleton so
+  // navigation paints instantly instead of blocking on the aggregate queries.
+  return (
+    <Suspense fallback={<OverviewLoading />}>
+      <OverviewBody ownerId={ownerId} chartDays={chartDays} />
+    </Suspense>
+  )
+}
+
+async function OverviewBody({ ownerId, chartDays }: { ownerId: string; chartDays: Range }) {
+  const user = await currentUser()
   const {
     mtdSpend,
     apiSpend,
@@ -291,7 +315,7 @@ export default async function OverviewPage({
         </div>
         {lastSyncedAt && (
           <p className="text-xs text-zinc-400 pb-0.5">
-            Updated {formatDistanceToNow(lastSyncedAt, { addSuffix: true })}
+            Updated {formatDistanceToNow(new Date(lastSyncedAt), { addSuffix: true })}
           </p>
         )}
       </div>

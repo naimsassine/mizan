@@ -1,8 +1,12 @@
 import { auth } from "@clerk/nextjs/server"
+import { Suspense } from "react"
+import { unstable_cache } from "next/cache"
 import { subDays } from "date-fns"
 import { prisma } from "@/lib/prisma"
+import { ownerUsageTag } from "@/lib/cache"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { CostPerMillionChart } from "@/components/compare/cost-per-million-chart"
@@ -35,6 +39,16 @@ const PROVIDER_COLORS: Record<string, string> = {
 const VALID_RANGES = [30, 90, 365, 0] as const
 type Range = (typeof VALID_RANGES)[number]
 
+type Row = {
+  provider: string
+  model: string
+  totalCost: number
+  totalTokens: number
+  inputTokens: number
+  outputTokens: number
+  costPer1M: number
+}
+
 function rangeLabel(d: number) {
   if (d === 0) return "All time"
   if (d === 365) return "1y"
@@ -53,19 +67,17 @@ function formatTokens(n: number): string {
   return String(n)
 }
 
-export default async function ComparePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ range?: string; provider?: string }>
-}) {
-  const { userId, orgId } = await auth()
-  const ownerId = orgId ?? userId!
+// Cached per (owner, range). Tag-invalidated on any usage write. Provider filtering is applied
+// after the cache read since it only narrows an already-fetched, cheap row set.
+function getCompareRows(ownerId: string, days: Range) {
+  return unstable_cache(
+    () => loadCompareRows(ownerId, days),
+    ["compare-rows", ownerId, String(days)],
+    { tags: [ownerUsageTag(ownerId)], revalidate: 300 },
+  )()
+}
 
-  const { range: rangeParam, provider: providerParam } = await searchParams
-  const days: Range = (VALID_RANGES as readonly number[]).includes(Number(rangeParam))
-    ? (Number(rangeParam) as Range)
-    : 30
-
+async function loadCompareRows(ownerId: string, days: Range): Promise<Row[]> {
   const fromDate = days === 0 ? undefined : subDays(new Date(), days)
 
   const records = await prisma.usageRecord.groupBy({
@@ -77,17 +89,7 @@ export default async function ComparePage({
     _sum: { costUsd: true, inputTokens: true, outputTokens: true },
   })
 
-  type Row = {
-    provider: string
-    model: string
-    totalCost: number
-    totalTokens: number
-    inputTokens: number
-    outputTokens: number
-    costPer1M: number
-  }
-
-  const rows: Row[] = records
+  return records
     .map((r) => {
       const totalCost = Number(r._sum.costUsd ?? 0)
       const inputTokens = Number(r._sum.inputTokens ?? 0)
@@ -103,22 +105,24 @@ export default async function ComparePage({
       if (a.totalTokens > 0 && b.totalTokens === 0) return -1
       return a.costPer1M - b.costPer1M
     })
+}
 
+export default async function ComparePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string; provider?: string }>
+}) {
+  const { userId, orgId } = await auth()
+  const ownerId = orgId ?? userId!
+
+  const { range: rangeParam, provider: providerParam } = await searchParams
+  const days: Range = (VALID_RANGES as readonly number[]).includes(Number(rangeParam))
+    ? (Number(rangeParam) as Range)
+    : 30
+
+  // filteredProvider only depends on the URL + the static label map, so it's known up front.
   const filteredProvider =
     providerParam && Object.keys(PROVIDER_LABEL).includes(providerParam) ? providerParam : null
-
-  const displayRows = filteredProvider ? rows.filter((r) => r.provider === filteredProvider) : rows
-
-  const activeProviders = Array.from(new Set(rows.map((r) => r.provider)))
-
-  const chartData = displayRows
-    .filter((r) => r.totalTokens > 0)
-    .slice(0, 20)
-    .map((r) => ({
-      label: r.model.length > 26 ? r.model.slice(0, 26) + "…" : r.model,
-      costPer1M: parseFloat(r.costPer1M.toFixed(4)),
-      provider: r.provider,
-    }))
 
   function rangeHref(d: number) {
     const p = new URLSearchParams()
@@ -127,13 +131,7 @@ export default async function ComparePage({
     return `/compare?${p}`
   }
 
-  function providerHref(p: string | null) {
-    const params = new URLSearchParams()
-    params.set("range", String(days))
-    if (p) params.set("provider", p)
-    return `/compare?${params}`
-  }
-
+  // Header + range selector render instantly; the rest streams once the aggregate resolves.
   return (
     <div className="mx-auto max-w-5xl px-4 md:px-8 py-6 md:py-8">
       {/* Header */}
@@ -164,6 +162,45 @@ export default async function ComparePage({
         </div>
       </div>
 
+      <Suspense key={`${days}:${filteredProvider}`} fallback={<CompareDataSkeleton />}>
+        <CompareData ownerId={ownerId} days={days} filteredProvider={filteredProvider} />
+      </Suspense>
+    </div>
+  )
+}
+
+async function CompareData({
+  ownerId,
+  days,
+  filteredProvider,
+}: {
+  ownerId: string
+  days: Range
+  filteredProvider: string | null
+}) {
+  const rows = await getCompareRows(ownerId, days)
+
+  const displayRows = filteredProvider ? rows.filter((r) => r.provider === filteredProvider) : rows
+  const activeProviders = Array.from(new Set(rows.map((r) => r.provider)))
+
+  const chartData = displayRows
+    .filter((r) => r.totalTokens > 0)
+    .slice(0, 20)
+    .map((r) => ({
+      label: r.model.length > 26 ? r.model.slice(0, 26) + "…" : r.model,
+      costPer1M: parseFloat(r.costPer1M.toFixed(4)),
+      provider: r.provider,
+    }))
+
+  function providerHref(p: string | null) {
+    const params = new URLSearchParams()
+    params.set("range", String(days))
+    if (p) params.set("provider", p)
+    return `/compare?${params}`
+  }
+
+  return (
+    <>
       {/* Provider filter */}
       {activeProviders.length > 1 && (
         <div className="mb-6 flex flex-wrap items-center gap-1.5">
@@ -338,6 +375,42 @@ export default async function ComparePage({
           </Card>
         </>
       )}
-    </div>
+    </>
+  )
+}
+
+function CompareDataSkeleton() {
+  return (
+    <>
+      <Card className="mb-6 rounded-xl border-zinc-100 shadow-none">
+        <CardHeader className="px-5 pb-2 pt-5">
+          <Skeleton className="h-4 w-56" />
+          <Skeleton className="mt-1 h-3 w-40" />
+        </CardHeader>
+        <CardContent className="px-5 pb-5">
+          <Skeleton className="h-[260px] w-full" />
+        </CardContent>
+      </Card>
+      <Card className="overflow-hidden rounded-xl border-zinc-100 shadow-none">
+        <div className="border-b border-zinc-100 px-5 py-3">
+          <div className="flex gap-8">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-3 w-16" />
+            ))}
+          </div>
+        </div>
+        <div className="divide-y divide-zinc-50">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-8 px-5 py-3">
+              <Skeleton className="h-3 w-32" />
+              <Skeleton className="h-4 w-16 rounded-full" />
+              <Skeleton className="ml-auto h-3 w-12" />
+              <Skeleton className="h-3 w-12" />
+              <Skeleton className="h-3 w-16" />
+            </div>
+          ))}
+        </div>
+      </Card>
+    </>
   )
 }

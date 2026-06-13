@@ -1,6 +1,8 @@
 import { auth } from "@clerk/nextjs/server"
+import { unstable_cache } from "next/cache"
 import { subDays, startOfMonth, endOfMonth, startOfDay, format, differenceInCalendarDays } from "date-fns"
 import { prisma } from "@/lib/prisma"
+import { ownerUsageTag } from "@/lib/cache"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -43,11 +45,18 @@ const periodColors: Record<string, string> = {
   monthly: "bg-indigo-50 text-indigo-700 border-indigo-100",
 }
 
-export default async function NotificationsPage() {
-  const { userId, orgId } = await auth()
-  const ownerId = orgId ?? userId!
-  const isOrg = !!orgId
+// Spend aggregates + anomaly detection — derived purely from usage records, so cache them per
+// owner (tag-invalidated on any usage write). The rules/alerts/settings lists stay uncached below
+// since they must reflect mutations immediately.
+function getNotificationSpend(ownerId: string) {
+  return unstable_cache(
+    () => loadNotificationSpend(ownerId),
+    ["notification-spend", ownerId],
+    { tags: [ownerUsageTag(ownerId)], revalidate: 300 },
+  )()
+}
 
+async function loadNotificationSpend(ownerId: string) {
   const now = new Date()
   const monthStart = startOfMonth(now)
   const monthEnd = endOfMonth(now)
@@ -55,22 +64,7 @@ export default async function NotificationsPage() {
   const dayAgo = subDays(now, 1)
   const fourteenDaysAgo = subDays(startOfDay(now), 13)
 
-  const [rules, alerts, userSettings, monthlySpend, weeklySpend, dailySpend, anomalyRecords] = await Promise.all([
-    prisma.budgetRule.findMany({
-      where: { ownerId },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.alert.findMany({
-      where: { budgetRule: { ownerId } },
-      orderBy: { triggeredAt: "desc" },
-      take: 50,
-      include: {
-        budgetRule: { select: { provider: true, period: true, limitUsd: true } },
-      },
-    }),
-    !isOrg && userId
-      ? prisma.userSettings.findUnique({ where: { clerkUserId: userId } })
-      : null,
+  const [monthlySpend, weeklySpend, dailySpend, anomalyRecords] = await Promise.all([
     prisma.usageRecord.aggregate({
       where: { ownerId, date: { gte: monthStart, lte: monthEnd } },
       _sum: { costUsd: true },
@@ -90,22 +84,6 @@ export default async function NotificationsPage() {
       orderBy: [{ date: "asc" }],
     }),
   ])
-
-  // Serialize Decimal fields for client components
-  const serializedAlerts = alerts.map((a) => ({
-    ...a,
-    spendUsd: Number(a.spendUsd),
-    budgetRule: {
-      ...a.budgetRule,
-      limitUsd: Number(a.budgetRule.limitUsd),
-    },
-  }))
-
-  const unackCount = alerts.filter((a) => !a.acknowledgedAt).length
-
-  const digestProviders = userSettings?.weeklyDigestProviders
-    ? userSettings.weeklyDigestProviders.split(",").filter(Boolean)
-    : []
 
   const spendSuggestions = {
     monthly: Number(monthlySpend._sum.costUsd ?? 0),
@@ -138,7 +116,50 @@ export default async function NotificationsPage() {
   }
   // Keep only the 5 most severe
   anomalies.sort((a, b) => b.multiplier - a.multiplier)
-  const topAnomalies = anomalies.slice(0, 5)
+  return { spendSuggestions, topAnomalies: anomalies.slice(0, 5) }
+}
+
+export default async function NotificationsPage() {
+  const { userId, orgId } = await auth()
+  const ownerId = orgId ?? userId!
+  const isOrg = !!orgId
+
+  const [[rules, alerts, userSettings], { spendSuggestions, topAnomalies }] = await Promise.all([
+    Promise.all([
+      prisma.budgetRule.findMany({
+        where: { ownerId },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.alert.findMany({
+        where: { budgetRule: { ownerId } },
+        orderBy: { triggeredAt: "desc" },
+        take: 50,
+        include: {
+          budgetRule: { select: { provider: true, period: true, limitUsd: true } },
+        },
+      }),
+      !isOrg && userId
+        ? prisma.userSettings.findUnique({ where: { clerkUserId: userId } })
+        : null,
+    ]),
+    getNotificationSpend(ownerId),
+  ])
+
+  // Serialize Decimal fields for client components
+  const serializedAlerts = alerts.map((a) => ({
+    ...a,
+    spendUsd: Number(a.spendUsd),
+    budgetRule: {
+      ...a.budgetRule,
+      limitUsd: Number(a.budgetRule.limitUsd),
+    },
+  }))
+
+  const unackCount = alerts.filter((a) => !a.acknowledgedAt).length
+
+  const digestProviders = userSettings?.weeklyDigestProviders
+    ? userSettings.weeklyDigestProviders.split(",").filter(Boolean)
+    : []
 
   return (
     <div className="mx-auto max-w-3xl px-4 md:px-8 py-6 md:py-8">
@@ -174,7 +195,9 @@ export default async function NotificationsPage() {
         )}
 
         {/* Anomaly detection */}
-        {topAnomalies.length > 0 && <AnomalyCard anomalies={topAnomalies} />}
+        {topAnomalies.length > 0 && (
+          <AnomalyCard anomalies={topAnomalies.map((a) => ({ ...a, date: new Date(a.date) }))} />
+        )}
 
         {/* Cost alert rules */}
         <Card className="rounded-xl border-zinc-100 bg-white shadow-none">

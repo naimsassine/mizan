@@ -1,21 +1,30 @@
 import { auth } from "@clerk/nextjs/server"
+import { unstable_cache } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { Sidebar } from "@/components/layout/sidebar"
 import { MobileNav } from "@/components/layout/mobile-nav"
 import { TopBar } from "@/components/layout/top-bar"
 import { CommandPalette } from "@/components/layout/command-palette"
+import { ownerAlertsTag } from "@/lib/cache"
 
-export const dynamic = "force-dynamic"
+// The unacknowledged-alert count powers the sidebar badge and is read on every dashboard render.
+// Cache it per owner (tag-invalidated when alerts are created/acknowledged) so navigation never
+// blocks on a DB round-trip just to draw a dot.
+function getUnackAlerts(ownerId: string) {
+  return unstable_cache(
+    () =>
+      prisma.alert.count({
+        where: { budgetRule: { ownerId }, acknowledgedAt: null },
+      }),
+    ["unack-alerts", ownerId],
+    { tags: [ownerAlertsTag(ownerId)], revalidate: 60 },
+  )()
+}
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { userId, orgId } = await auth()
   const ownerId = orgId ?? userId
-  let unackAlerts = 0
-  if (ownerId) {
-    unackAlerts = await prisma.alert.count({
-      where: { budgetRule: { ownerId }, acknowledgedAt: null },
-    })
-  }
+  const unackAlerts = ownerId ? await getUnackAlerts(ownerId) : 0
 
   return (
     <div className="flex h-full">
