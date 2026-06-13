@@ -31,10 +31,6 @@ const providers = [
   {
     value: "gemini",
     label: "Google Gemini",
-    hint: "AI Studio → Get API key",
-    keyUrl: "https://aistudio.google.com/app/apikey",
-    keyPrefix: "AIza",
-    placeholder: "AIza...",
   },
   {
     value: "bedrock",
@@ -230,53 +226,22 @@ export function AddConnectionDialog() {
           )}
 
           {provider === "gemini" && (
-            <div className="space-y-3">
-              <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
-                <p className="text-xs font-medium text-blue-800 mb-1">
-                  Vertex AI — real usage data
-                </p>
-                <p className="text-[11px] text-blue-700 mb-2.5">
-                  Connect via Google OAuth to sync actual token usage and costs from Cloud
-                  Monitoring. Requires a GCP project with Vertex AI enabled.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => { setOpen(false); window.location.href = "/api/auth/gcp" }}
-                  className="flex items-center gap-1.5 text-xs font-medium text-blue-700 hover:text-blue-900 transition-colors"
-                >
-                  Connect with Google
-                  <ExternalLink className="h-3 w-3" />
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-px flex-1 bg-zinc-100" />
-                <span className="text-[10px] text-zinc-400">or use AI Studio key (no usage data)</span>
-                <div className="h-px flex-1 bg-zinc-100" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-zinc-600">AI Studio API Key</Label>
-                <Input
-                  type="password"
-                  placeholder={selectedProvider?.placeholder ?? ""}
-                  value={apiKey}
-                  onChange={(e) => { setApiKey(e.target.value); setError("") }}
-                  className="h-9 font-mono text-sm"
-                />
-                <p className="text-[11px] text-zinc-400 flex items-center gap-1">
-                  {selectedProvider?.hint}
-                  {selectedProvider?.keyUrl && (
-                    <a
-                      href={selectedProvider.keyUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-0.5 text-zinc-500 hover:text-zinc-800 transition-colors underline underline-offset-2"
-                    >
-                      Open
-                      <ExternalLink className="h-2.5 w-2.5" />
-                    </a>
-                  )}
-                </p>
-              </div>
+            <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+              <p className="text-xs font-medium text-blue-800 mb-1">
+                Vertex AI — real usage data
+              </p>
+              <p className="text-[11px] text-blue-700 mb-2.5">
+                Connect via Google OAuth to sync actual token usage and costs from Cloud
+                Monitoring. Requires a GCP project with Vertex AI enabled.
+              </p>
+              <button
+                type="button"
+                onClick={() => { setOpen(false); window.location.href = "/api/auth/gcp" }}
+                className="flex items-center gap-1.5 text-xs font-medium text-blue-700 hover:text-blue-900 transition-colors"
+              >
+                Connect with Google
+                <ExternalLink className="h-3 w-3" />
+              </button>
             </div>
           )}
 

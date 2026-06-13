@@ -91,16 +91,21 @@ async function queryTokens(
     "aggregation.alignmentPeriod": "86400s",
     "aggregation.perSeriesAligner": "ALIGN_SUM",
     "aggregation.crossSeriesReducer": "REDUCE_SUM",
-    "aggregation.groupByFields": "metric.labels.model_user_id,metric.labels.type",
   })
+  params.append("aggregation.groupByFields", "metric.labels.model_user_id")
+  params.append("aggregation.groupByFields", "metric.labels.type")
 
-  const res = await fetch(
-    `${MONITORING_API}/projects/${projectId}/timeSeries?${params}`,
-    { headers: { Authorization: `Bearer ${accessToken}` } },
-  )
-  if (!res.ok) return []
+  const url = `${MONITORING_API}/projects/${projectId}/timeSeries?${params}`
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
+  if (!res.ok) {
+    const body = await res.text()
+    console.error(`[mizan/vertex] Cloud Monitoring ${res.status} for project "${projectId}":`, body.slice(0, 600))
+    return []
+  }
   const data = await res.json()
-  return (data.timeSeries ?? []) as TimeSeries[]
+  const series = (data.timeSeries ?? []) as TimeSeries[]
+  console.log(`[mizan/vertex] timeSeries returned: ${series.length} (project: ${projectId}, metric: ${TOKEN_METRIC})`)
+  return series
 }
 
 async function upsertDayData(
