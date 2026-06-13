@@ -18,10 +18,11 @@ import { SpendChart } from "@/components/dashboard/spend-chart"
 import { ModelBreakdown } from "@/components/dashboard/model-breakdown"
 import { TimeGreeting } from "@/components/dashboard/time-greeting"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Plug, ArrowRight, Key, BarChart2, Info } from "lucide-react"
+import { Plug, ArrowRight, Key, BarChart2 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { DoubleCountingBanner } from "@/components/dashboard/double-counting-banner"
 
 const VALID_RANGES = [7, 30, 90] as const
 type Range = (typeof VALID_RANGES)[number]
@@ -398,14 +399,7 @@ export default async function OverviewPage({
           </div>
 
           {doubleCountProviders.length > 0 && (
-            <div className="flex items-start gap-2 rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
-              <span>
-                Possible double-counting: {doubleCountProviders.join(", ")} appear in both API usage records and receipts this month.
-                Consider reclassifying receipts as &ldquo;Subscription&rdquo; on the{" "}
-                <Link href="/receipts" className="underline underline-offset-2">Receipts page</Link>.
-              </span>
-            </div>
+            <DoubleCountingBanner providers={doubleCountProviders} />
           )}
 
           {(apiSpend > 0 || subscriptionSpend > 0) && (

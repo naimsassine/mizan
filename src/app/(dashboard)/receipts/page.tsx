@@ -2,13 +2,12 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Mail, Receipt } from "lucide-react"
+import { Receipt } from "lucide-react"
 import { formatDistanceToNow, format } from "date-fns"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { ConnectEmailButton } from "@/components/receipts/connect-email-button"
-import { ScanEmailButton } from "@/components/receipts/scan-email-button"
-import { DisconnectEmailButton } from "@/components/receipts/disconnect-email-button"
+import { EmailConnectionRow } from "@/components/receipts/email-connection-row"
 import { ReceiptFormDialog } from "@/components/receipts/receipt-form-dialog"
 import { UploadReceiptButton } from "@/components/receipts/upload-receipt-button"
 import { ReclassifyBadge } from "@/components/receipts/reclassify-badge"
@@ -121,55 +120,15 @@ export default async function ReceiptsPage({
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">Connected email accounts</p>
           <div className="space-y-2">
           {emailConnections.map((conn) => (
-            <Card
+            <EmailConnectionRow
               key={conn.id}
-              className="rounded-xl border-zinc-100 bg-white shadow-none border-l-2 border-l-violet-400"
-            >
-              <CardContent className="flex items-center justify-between px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <Mail className="h-4 w-4 text-zinc-400" strokeWidth={1.5} />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-zinc-900">{conn.emailAddress}</p>
-                      <span className="text-[10px] text-zinc-400 capitalize">
-                        {conn.emailProvider}
-                      </span>
-                    </div>
-                    <p className="mt-0.5 text-xs text-zinc-400">
-                      {conn.lastScannedAt ? (
-                        <>
-                          Scanned {formatDistanceToNow(conn.lastScannedAt, { addSuffix: true })}
-                          {conn.lastScanFound !== null && (
-                            <>
-                              {" · "}
-                              {conn.lastScanFound === 0
-                                ? "no new receipts"
-                                : `${conn.lastScanFound} receipt${conn.lastScanFound !== 1 ? "s" : ""} found`}
-                            </>
-                          )}
-                        </>
-                      ) : (
-                        "Scan in progress…"
-                      )}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge
-                    variant="outline"
-                    className={`text-[10px] px-2 py-0 h-5 ${
-                      conn.status === "active"
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-                        : "bg-red-50 text-red-700 border-red-100"
-                    }`}
-                  >
-                    {conn.status}
-                  </Badge>
-                  <ScanEmailButton id={conn.id} />
-                  <DisconnectEmailButton id={conn.id} email={conn.emailAddress} />
-                </div>
-              </CardContent>
-            </Card>
+              id={conn.id}
+              emailAddress={conn.emailAddress}
+              emailProvider={conn.emailProvider}
+              status={conn.status}
+              lastScannedAt={conn.lastScannedAt}
+              lastScanFound={conn.lastScanFound}
+            />
           ))}
           </div>
         </div>
