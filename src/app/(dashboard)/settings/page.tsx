@@ -15,7 +15,6 @@ const PROVIDER_HISTORY_LIMITS: Record<string, string> = {
   Groq: "up to 1 month (Enterprise Prometheus)",
   "Mistral AI": "up to 3 months",
   "xAI / Grok": "up to 3 months",
-  "Kimi (Moonshot)": "up to 3 months",
   OpenRouter: "up to 3 months",
   LiteLLM: "limited by your proxy's log retention",
 }

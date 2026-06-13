@@ -7,6 +7,7 @@ import * as outlook from "@/lib/outlook"
 const GMAIL_DOMAINS = [
   "openai.com",
   "anthropic.com",
+  "mail.anthropic.com",
   "mistral.ai",
   "cohere.com",
   "perplexity.ai",
@@ -51,8 +52,11 @@ export async function scanEmails(
     messageIds = await outlook.searchMessages(accessToken, 100)
   } else {
     const since = format(subMonths(new Date(), 6), "yyyy/MM/dd")
-    messageIds = await gmail.searchMessages(accessToken, `(${GMAIL_QUERY}) after:${since}`, 100)
+    const query = `(${GMAIL_QUERY}) after:${since}`
+    console.log("[scan-emails] Gmail query:", query)
+    messageIds = await gmail.searchMessages(accessToken, query, 100)
   }
+  console.log(`[scan-emails] Found ${messageIds.length} message IDs`)
 
   // Skip already-processed IDs — scope by ownerId so reconnects don't reimport
   const existing = await prisma.receipt.findMany({
@@ -61,6 +65,7 @@ export async function scanEmails(
   })
   const seen = new Set(existing.map((r) => r.externalId!))
   const newIds = messageIds.filter((id) => !seen.has(id))
+  console.log(`[scan-emails] ${newIds.length} new (${messageIds.length - newIds.length} already seen)`)
 
   let saved = 0
   for (const messageId of newIds) {
@@ -70,7 +75,9 @@ export async function scanEmails(
           ? await outlook.getMessage(accessToken, messageId)
           : await gmail.getMessage(accessToken, messageId)
 
+      console.log(`[scan-emails] Processing: from="${msg.from}" subject="${msg.subject}"`)
       const parsed = await parseEmailAsReceipt(msg.subject, msg.from, msg.body)
+      console.log(`[scan-emails] Parsed:`, JSON.stringify(parsed))
       if (!parsed.isAiBillingEmail || parsed.amountUsd === null) continue
 
       await prisma.receipt.create({

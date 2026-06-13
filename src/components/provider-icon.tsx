@@ -10,7 +10,6 @@ const PROVIDER_META: Record<string, { mono: string; className: string }> = {
   groq: { mono: "Gq", className: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300" },
   mistral: { mono: "M", className: "bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300" },
   grok: { mono: "X", className: "bg-slate-200 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300" },
-  kimi: { mono: "K", className: "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300" },
   openrouter: { mono: "OR", className: "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300" },
   litellm: { mono: "LL", className: "bg-lime-100 text-lime-700 dark:bg-lime-500/15 dark:text-lime-300" },
 }

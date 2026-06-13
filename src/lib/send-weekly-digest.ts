@@ -11,7 +11,6 @@ const providerLabel: Record<string, string> = {
   groq: "Groq",
   mistral: "Mistral AI",
   grok: "xAI / Grok",
-  kimi: "Kimi",
   openrouter: "OpenRouter",
   litellm: "LiteLLM",
 }
@@ -172,7 +171,7 @@ export async function sendWeeklyDigest(userId: string) {
       : null
 
   const providerFilter = filterProviders
-    ? { provider: { in: filterProviders as ("openai" | "anthropic" | "gemini" | "bedrock" | "groq" | "mistral" | "grok" | "kimi" | "openrouter" | "litellm")[] } }
+    ? { provider: { in: filterProviders as ("openai" | "anthropic" | "gemini" | "bedrock" | "groq" | "mistral" | "grok" | "openrouter" | "litellm")[] } }
     : {}
 
   const [thisWeekRecords, priorWeekRecords] = await Promise.all([

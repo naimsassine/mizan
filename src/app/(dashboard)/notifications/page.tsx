@@ -21,7 +21,6 @@ const providerLabel: Record<string, string> = {
   groq: "Groq",
   mistral: "Mistral AI",
   grok: "xAI / Grok",
-  kimi: "Kimi",
   openrouter: "OpenRouter",
   litellm: "LiteLLM",
 }
@@ -34,7 +33,6 @@ const providerColors: Record<string, string> = {
   groq: "bg-red-50 text-red-700 border-red-100",
   mistral: "bg-purple-50 text-purple-700 border-purple-100",
   grok: "bg-slate-50 text-slate-700 border-slate-200",
-  kimi: "bg-indigo-50 text-indigo-700 border-indigo-100",
   openrouter: "bg-rose-50 text-rose-700 border-rose-100",
   litellm: "bg-lime-50 text-lime-700 border-lime-100",
 }

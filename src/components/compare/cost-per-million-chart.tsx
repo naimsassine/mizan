@@ -25,7 +25,6 @@ const PROVIDER_COLORS: Record<string, string> = {
   groq: "#ef4444",
   mistral: "#a855f7",
   grok: "#94a3b8",
-  kimi: "#6366f1",
   openrouter: "#f43f5e",
   litellm: "#84cc16",
 }

@@ -25,7 +25,6 @@ const ALL_PROVIDERS = [
   { value: "groq",      label: "Groq" },
   { value: "mistral",   label: "Mistral AI" },
   { value: "grok",      label: "xAI / Grok" },
-  { value: "kimi",        label: "Kimi (Moonshot)" },
   { value: "openrouter",  label: "OpenRouter" },
   { value: "litellm",     label: "LiteLLM" },
 ]

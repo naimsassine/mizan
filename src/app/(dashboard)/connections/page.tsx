@@ -22,7 +22,6 @@ const providerLabel: Record<string, string> = {
   groq: "Groq",
   mistral: "Mistral AI",
   grok: "xAI / Grok",
-  kimi: "Kimi (Moonshot)",
   openrouter: "OpenRouter",
   litellm: "LiteLLM",
 }
@@ -35,7 +34,6 @@ const providerAccent: Record<string, string> = {
   groq: "border-l-red-400",
   mistral: "border-l-purple-400",
   grok: "border-l-slate-400",
-  kimi: "border-l-indigo-400",
   openrouter: "border-l-rose-400",
   litellm: "border-l-lime-400",
 }
@@ -54,7 +52,6 @@ const errorHint: Record<string, string> = {
   groq: "Check that your API key is valid.",
   mistral: "Check that your API key is valid.",
   grok: "Check that your xAI API key is valid.",
-  kimi: "Check that your Moonshot API key is valid.",
   openrouter: "Check that your OpenRouter API key is valid.",
   litellm: "Check your LiteLLM proxy URL and API key.",
 }

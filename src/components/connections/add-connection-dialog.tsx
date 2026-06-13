@@ -69,14 +69,6 @@ const providers = [
     placeholder: "xai-...",
   },
   {
-    value: "kimi",
-    label: "Kimi (Moonshot AI)",
-    hint: "Moonshot Platform → API Keys",
-    keyUrl: "https://platform.moonshot.cn/console/api-keys",
-    keyPrefix: "sk-",
-    placeholder: "sk-...",
-  },
-  {
     value: "openrouter",
     label: "OpenRouter",
     hint: "Keys → Create key",

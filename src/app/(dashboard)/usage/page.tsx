@@ -18,7 +18,6 @@ const providerColors: Record<string, string> = {
   groq: "bg-red-50 text-red-700 border-red-100",
   mistral: "bg-indigo-50 text-indigo-700 border-indigo-100",
   grok: "bg-zinc-50 text-zinc-700 border-zinc-200",
-  kimi: "bg-sky-50 text-sky-700 border-sky-100",
   openrouter: "bg-violet-50 text-violet-700 border-violet-100",
   litellm: "bg-teal-50 text-teal-700 border-teal-100",
 }
@@ -31,7 +30,6 @@ const providerLabel: Record<string, string> = {
   groq: "Groq",
   mistral: "Mistral",
   grok: "Grok",
-  kimi: "Kimi",
   openrouter: "OpenRouter",
   litellm: "LiteLLM",
 }
@@ -39,7 +37,7 @@ const providerLabel: Record<string, string> = {
 const VALID_RANGES = [7, 30, 90] as const
 type Range = (typeof VALID_RANGES)[number]
 
-const VALID_PROVIDERS = ["openai", "anthropic", "gemini", "bedrock", "groq", "mistral", "grok", "kimi", "openrouter", "litellm"] as const
+const VALID_PROVIDERS = ["openai", "anthropic", "gemini", "bedrock", "groq", "mistral", "grok", "openrouter", "litellm"] as const
 type ProviderFilter = (typeof VALID_PROVIDERS)[number] | "all"
 
 function formatTokens(n: number): string {
@@ -78,10 +76,12 @@ export default async function UsagePage({
       _sum: { costUsd: true, inputTokens: true, outputTokens: true },
       orderBy: [{ date: "desc" }],
     }),
-    // Only fetch subscriptions when no provider filter (subscriptions are not provider-specific)
-    providerFilter === "all"
-      ? prisma.receipt.findMany({
-          where: { ownerId, usageType: "subscription" },
+    prisma.receipt.findMany({
+          where: {
+            ownerId,
+            usageType: "subscription",
+            ...(providerFilter !== "all" ? { provider: providerFilter } : {}),
+          },
           select: {
             id: true,
             provider: true,
@@ -94,8 +94,7 @@ export default async function UsagePage({
           },
           orderBy: { createdAt: "desc" },
           take: 200,
-        })
-      : Promise.resolve([]),
+        }),
   ])
 
   // Filter subscriptions to the selected date window using effective date

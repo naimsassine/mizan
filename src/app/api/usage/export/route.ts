@@ -5,7 +5,7 @@ import { subDays, format } from "date-fns"
 import type { Provider } from "@/generated/prisma/client"
 
 const VALID_RANGES = [7, 30, 90]
-const VALID_PROVIDERS: Provider[] = ["openai", "anthropic", "gemini", "bedrock", "groq", "mistral", "grok", "kimi", "openrouter", "litellm"]
+const VALID_PROVIDERS: Provider[] = ["openai", "anthropic", "gemini", "bedrock", "groq", "mistral", "grok", "openrouter", "litellm"]
 
 function csvCell(value: string): string {
   const escaped = value.replace(/"/g, '""')

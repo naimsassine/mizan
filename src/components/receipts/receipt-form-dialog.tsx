@@ -31,7 +31,6 @@ const PROVIDERS = [
   { value: "aws", label: "AWS" },
   { value: "mistral", label: "Mistral AI" },
   { value: "grok", label: "xAI / Grok" },
-  { value: "kimi", label: "Kimi (Moonshot AI)" },
   { value: "cohere", label: "Cohere" },
   { value: "perplexity", label: "Perplexity" },
   { value: "cursor", label: "Cursor" },

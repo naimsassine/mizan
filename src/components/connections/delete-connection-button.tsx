@@ -16,7 +16,6 @@ const providerLabel: Record<string, string> = {
   groq: "Groq",
   mistral: "Mistral AI",
   grok: "xAI / Grok",
-  kimi: "Kimi",
   openrouter: "OpenRouter",
   litellm: "LiteLLM",
 }

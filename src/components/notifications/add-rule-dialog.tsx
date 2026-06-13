@@ -90,7 +90,6 @@ export function AddRuleDialog({ spendSuggestions }: { spendSuggestions?: SpendSu
                 <SelectItem value="groq" className="text-sm">Groq</SelectItem>
                 <SelectItem value="mistral" className="text-sm">Mistral AI</SelectItem>
                 <SelectItem value="grok" className="text-sm">xAI / Grok</SelectItem>
-                <SelectItem value="kimi" className="text-sm">Kimi (Moonshot AI)</SelectItem>
                 <SelectItem value="openrouter" className="text-sm">OpenRouter</SelectItem>
                 <SelectItem value="litellm" className="text-sm">LiteLLM</SelectItem>
               </SelectContent>

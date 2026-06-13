@@ -27,7 +27,6 @@ const providerColors: Record<string, string> = {
   cursor: "bg-pink-50 text-pink-700 border-pink-100",
   groq: "bg-red-50 text-red-700 border-red-100",
   grok: "bg-slate-50 text-slate-700 border-slate-200",
-  kimi: "bg-indigo-50 text-indigo-700 border-indigo-100",
   xai: "bg-slate-50 text-slate-700 border-slate-200",
   openrouter: "bg-rose-50 text-rose-700 border-rose-100",
   litellm: "bg-lime-50 text-lime-700 border-lime-100",

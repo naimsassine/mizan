@@ -13,7 +13,6 @@ import { syncBedrock, syncBedrockIncremental } from "@/lib/sync/bedrock"
 import { syncGroq, syncGroqIncremental } from "@/lib/sync/groq"
 import { syncMistral, syncMistralIncremental } from "@/lib/sync/mistral"
 import { syncGrok, syncGrokIncremental } from "@/lib/sync/grok"
-import { syncKimi, syncKimiIncremental } from "@/lib/sync/kimi"
 import { syncOpenRouter, syncOpenRouterIncremental } from "@/lib/sync/openrouter"
 import { syncLiteLLM, syncLiteLLMIncremental } from "@/lib/sync/litellm"
 
@@ -24,7 +23,7 @@ export async function createConnection(provider: string, credValue: string, isJs
   if (!userId) return { error: "Unauthorized" }
   if (orgId && orgRole === "org:viewer") return { error: "Viewers cannot add connections" }
 
-  const validProviders = ["openai", "anthropic", "gemini", "bedrock", "groq", "mistral", "grok", "kimi", "openrouter", "litellm"]
+  const validProviders = ["openai", "anthropic", "gemini", "bedrock", "groq", "mistral", "grok", "openrouter", "litellm"]
   if (!validProviders.includes(provider)) return { error: "Invalid provider" }
   if (!credValue.trim()) return { error: "Credentials are required" }
 
@@ -49,7 +48,7 @@ export async function createConnection(provider: string, credValue: string, isJs
       data: {
         ownerId,
         ownerType: ownerType as "user" | "org",
-        provider: provider as "openai" | "anthropic" | "gemini" | "bedrock" | "groq" | "mistral" | "grok" | "kimi" | "openrouter" | "litellm",
+        provider: provider as "openai" | "anthropic" | "gemini" | "bedrock" | "groq" | "mistral" | "grok" | "openrouter" | "litellm",
         encCredentials: encrypt(credJson),
         backfillFrom: startOfDay(subMonths(new Date(), backfillMonths)),
         backfillStatus: "pending",
@@ -68,7 +67,6 @@ export async function createConnection(provider: string, credValue: string, isJs
     else if (provider === "groq") await syncGroq(connectionId)
     else if (provider === "mistral") await syncMistral(connectionId)
     else if (provider === "grok") await syncGrok(connectionId)
-    else if (provider === "kimi") await syncKimi(connectionId)
     else if (provider === "openrouter") await syncOpenRouter(connectionId)
     else if (provider === "litellm") await syncLiteLLM(connectionId)
   })
@@ -98,7 +96,6 @@ export async function triggerSync(connectionId: string) {
     else if (connection.provider === "groq") await (fullSync ? syncGroq : syncGroqIncremental)(connectionId)
     else if (connection.provider === "mistral") await (fullSync ? syncMistral : syncMistralIncremental)(connectionId)
     else if (connection.provider === "grok") await (fullSync ? syncGrok : syncGrokIncremental)(connectionId)
-    else if (connection.provider === "kimi") await (fullSync ? syncKimi : syncKimiIncremental)(connectionId)
     else if (connection.provider === "openrouter") await (fullSync ? syncOpenRouter : syncOpenRouterIncremental)(connectionId)
     else if (connection.provider === "litellm") await (fullSync ? syncLiteLLM : syncLiteLLMIncremental)(connectionId)
   })

@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 
-const VALID_PROVIDERS = ["openai", "anthropic", "gemini", "bedrock", "groq", "mistral", "grok", "kimi", "openrouter", "litellm"]
+const VALID_PROVIDERS = ["openai", "anthropic", "gemini", "bedrock", "groq", "mistral", "grok", "openrouter", "litellm"]
 
 export async function createBudgetRule(formData: FormData) {
   const { userId, orgId, orgRole } = await auth()
@@ -32,7 +32,7 @@ export async function createBudgetRule(formData: FormData) {
       alertAtPct,
       provider:
         provider && provider !== "all"
-          ? (provider as "openai" | "anthropic" | "gemini" | "bedrock" | "groq" | "mistral" | "grok" | "kimi" | "openrouter" | "litellm")
+          ? (provider as "openai" | "anthropic" | "gemini" | "bedrock" | "groq" | "mistral" | "grok" | "openrouter" | "litellm")
           : null,
     },
   })

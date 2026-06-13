@@ -9,7 +9,6 @@ import { syncBedrockIncremental } from "@/lib/sync/bedrock"
 import { syncGroqIncremental } from "@/lib/sync/groq"
 import { syncMistralIncremental } from "@/lib/sync/mistral"
 import { syncGrokIncremental } from "@/lib/sync/grok"
-import { syncKimiIncremental } from "@/lib/sync/kimi"
 import { syncOpenRouterIncremental } from "@/lib/sync/openrouter"
 import { syncLiteLLMIncremental } from "@/lib/sync/litellm"
 import { scanEmails } from "@/lib/scan-emails"
@@ -43,7 +42,6 @@ export async function GET(req: Request) {
       if (c.provider === "groq") return syncGroqIncremental(c.id)
       if (c.provider === "mistral") return syncMistralIncremental(c.id)
       if (c.provider === "grok") return syncGrokIncremental(c.id)
-      if (c.provider === "kimi") return syncKimiIncremental(c.id)
       if (c.provider === "openrouter") return syncOpenRouterIncremental(c.id)
       if (c.provider === "litellm") return syncLiteLLMIncremental(c.id)
       return syncOpenAIIncremental(c.id)

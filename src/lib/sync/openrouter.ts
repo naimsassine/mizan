@@ -1,78 +1,39 @@
 import { prisma } from "@/lib/prisma"
 import { decrypt } from "@/lib/encrypt"
-import { startOfDay, subDays, eachDayOfInterval, format, parseISO } from "date-fns"
+import { startOfDay, parseISO } from "date-fns"
 
-// OpenRouter returns actual USD costs per request — no pricing table needed.
-// Token counts come from native_tokens_prompt / native_tokens_completion.
+// GET /api/v1/activity — returns last 30 days of usage, grouped by model per day.
+// No pagination needed; max history is 30 completed UTC days.
 
-interface ORGeneration {
-  id: string
-  model: string
-  created_at: string
-  native_tokens_prompt?: number
-  native_tokens_completion?: number
-  total_cost?: number
+interface ORActivityRow {
+  date: string                  // "YYYY-MM-DD HH:MM:SS" UTC
+  model: string                 // e.g. "anthropic/claude-opus-4-8"
+  usage: number                 // OpenRouter credits spent (USD)
+  byok_usage_inference: number  // BYOK inference cost (USD)
+  prompt_tokens: number
+  completion_tokens: number
+  reasoning_tokens?: number
 }
 
-interface ORResponse {
-  data: ORGeneration[]
-  meta?: { total_count?: number }
+interface ORActivityResponse {
+  data: ORActivityRow[]
 }
 
-async function fetchGenerationsPage(
-  apiKey: string,
-  date: Date,
-  offset: number,
-): Promise<ORResponse | null> {
-  const day = format(startOfDay(date), "yyyy-MM-dd")
-  const url = new URL("https://openrouter.ai/api/v1/generation")
-  url.searchParams.set("date_min", day)
-  url.searchParams.set("date_max", day)
-  url.searchParams.set("limit", "1000")
-  url.searchParams.set("offset", String(offset))
-
-  const res = await fetch(url.toString(), {
+async function fetchActivity(apiKey: string): Promise<ORActivityRow[]> {
+  const res = await fetch("https://openrouter.ai/api/v1/activity", {
     headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
   })
 
   if (res.status === 401 || res.status === 403) throw new Error("openrouter_auth")
-  if (res.status === 404) return { data: [] }
+  if (res.status === 404) return []
   if (!res.ok) throw new Error(`openrouter_api_${res.status}`)
-  return res.json()
-}
 
-async function fetchDayUsage(
-  apiKey: string,
-  date: Date,
-): Promise<{ model: string; inputTokens: number; outputTokens: number; costUsd: number }[]> {
-  const byModel = new Map<string, { inputTokens: number; outputTokens: number; costUsd: number }>()
-  let offset = 0
-
-  while (true) {
-    const page = await fetchGenerationsPage(apiKey, date, offset)
-    if (!page || page.data.length === 0) break
-
-    for (const gen of page.data) {
-      if (!gen.model) continue
-      const cur = byModel.get(gen.model) ?? { inputTokens: 0, outputTokens: 0, costUsd: 0 }
-      cur.inputTokens += gen.native_tokens_prompt ?? 0
-      cur.outputTokens += gen.native_tokens_completion ?? 0
-      cur.costUsd += gen.total_cost ?? 0
-      byModel.set(gen.model, cur)
-    }
-
-    const totalCount = page.meta?.total_count ?? page.data.length
-    offset += page.data.length
-    if (offset >= totalCount || page.data.length < 1000) break
-  }
-
-  return Array.from(byModel.entries())
-    .filter(([, v]) => v.inputTokens > 0 || v.outputTokens > 0 || v.costUsd > 0)
-    .map(([model, v]) => ({ model, ...v }))
+  const json: ORActivityResponse = await res.json()
+  return json.data ?? []
 }
 
 async function upsertRecord({
-  connectionId, ownerId, ownerType, date, model, inputTokens, outputTokens, costUsd,
+  connectionId, ownerId, ownerType, date, model, inputTokens, outputTokens, costUsd, raw,
 }: {
   connectionId: string
   ownerId: string
@@ -82,6 +43,7 @@ async function upsertRecord({
   inputTokens: number
   outputTokens: number
   costUsd: number
+  raw: unknown
 }) {
   await prisma.usageRecord.upsert({
     where: { connectionId_date_model: { connectionId, date, model } },
@@ -90,9 +52,34 @@ async function upsertRecord({
       connectionId, ownerId, ownerType,
       date, provider: "openrouter", model,
       inputTokens: BigInt(inputTokens), outputTokens: BigInt(outputTokens),
-      costUsd, source: "api_poll",
+      costUsd, source: "api_poll", rawPayload: raw as object,
     },
   })
+}
+
+async function syncFromActivity(
+  apiKey: string,
+  connectionId: string,
+  ownerId: string,
+  ownerType: "user" | "org",
+): Promise<boolean> {
+  const rows = await fetchActivity(apiKey)
+
+  for (const row of rows) {
+    if (!row.model) continue
+    const inputTokens = row.prompt_tokens ?? 0
+    const outputTokens = (row.completion_tokens ?? 0) + (row.reasoning_tokens ?? 0)
+    const costUsd = (row.usage ?? 0) + (row.byok_usage_inference ?? 0)
+    if (inputTokens === 0 && outputTokens === 0 && costUsd === 0) continue
+
+    // Date comes as "YYYY-MM-DD HH:MM:SS" UTC — parse the date portion only
+    const dateStr = row.date.split(" ")[0]
+    const date = startOfDay(parseISO(dateStr))
+
+    await upsertRecord({ connectionId, ownerId, ownerType, date, model: row.model, inputTokens, outputTokens, costUsd, raw: row })
+  }
+
+  return true
 }
 
 export async function syncOpenRouter(connectionId: string) {
@@ -107,7 +94,6 @@ export async function syncOpenRouter(connectionId: string) {
     return
   }
 
-  const { apiKey } = credentials
   const ownerType = connection.ownerType as "user" | "org"
 
   await prisma.providerConnection.update({
@@ -116,17 +102,7 @@ export async function syncOpenRouter(connectionId: string) {
   })
 
   try {
-    const days = eachDayOfInterval({ start: connection.backfillFrom, end: subDays(new Date(), 1) })
-    for (const day of days) {
-      const rows = await fetchDayUsage(apiKey, day)
-      for (const row of rows) {
-        await upsertRecord({
-          connectionId, ownerId: connection.ownerId, ownerType,
-          date: startOfDay(day), model: row.model,
-          inputTokens: row.inputTokens, outputTokens: row.outputTokens, costUsd: row.costUsd,
-        })
-      }
-    }
+    await syncFromActivity(credentials.apiKey, connectionId, connection.ownerId, ownerType)
 
     await prisma.providerConnection.update({
       where: { id: connectionId },
@@ -155,17 +131,7 @@ export async function syncOpenRouterIncremental(connectionId: string) {
   const ownerType = connection.ownerType as "user" | "org"
 
   try {
-    const days = eachDayOfInterval({ start: subDays(new Date(), 3), end: subDays(new Date(), 1) })
-    for (const day of days) {
-      const rows = await fetchDayUsage(credentials.apiKey, day)
-      for (const row of rows) {
-        await upsertRecord({
-          connectionId, ownerId: connection.ownerId, ownerType,
-          date: startOfDay(day), model: row.model,
-          inputTokens: row.inputTokens, outputTokens: row.outputTokens, costUsd: row.costUsd,
-        })
-      }
-    }
+    await syncFromActivity(credentials.apiKey, connectionId, connection.ownerId, ownerType)
     await prisma.providerConnection.update({
       where: { id: connectionId },
       data: { lastSyncedAt: new Date() },
