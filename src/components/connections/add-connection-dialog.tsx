@@ -31,6 +31,7 @@ const providers = [
   {
     value: "gemini",
     label: "Google Gemini",
+    hidden: true,
   },
   {
     value: "bedrock",
@@ -39,6 +40,7 @@ const providers = [
     keyUrl: "https://console.aws.amazon.com/iam/home#/users",
     keyPrefix: "AKIA",
     placeholder: null,
+    hidden: true,
   },
   {
     value: "groq",
@@ -55,6 +57,7 @@ const providers = [
     keyUrl: "https://console.mistral.ai/api-keys",
     keyPrefix: "",
     placeholder: "...",
+    hidden: true,
   },
   {
     value: "grok",
@@ -63,6 +66,7 @@ const providers = [
     keyUrl: "https://console.x.ai",
     keyPrefix: "xai-",
     placeholder: "xai-...",
+    hidden: true,
   },
   {
     value: "openrouter",
@@ -79,6 +83,7 @@ const providers = [
     keyUrl: "https://docs.litellm.ai/docs/proxy/quick_start",
     keyPrefix: "",
     placeholder: null, // uses multi-field form
+    hidden: true,
   },
 ]
 
@@ -204,7 +209,7 @@ export function AddConnectionDialog() {
                 <SelectValue placeholder="Select a provider" />
               </SelectTrigger>
               <SelectContent>
-                {providers.map((p) => (
+                {providers.filter((p) => !p.hidden).map((p) => (
                   <SelectItem key={p.value} value={p.value} className="text-sm">
                     {p.label}
                   </SelectItem>

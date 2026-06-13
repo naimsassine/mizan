@@ -96,9 +96,32 @@ export async function GET() {
   )
   const tsBody = tsRes.ok ? await tsRes.json() : { error: tsRes.status, body: await tsRes.text() }
 
+  // Fetch full descriptor for the Gemini API token metric to see its labels
+  const glMetric = "generativelanguage.googleapis.com/generate_content_usage_output_token_count"
+  const descRes = await fetch(
+    `${MONITORING_API}/projects/${gcpProjectId}/metricDescriptors/${encodeURIComponent(glMetric)}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  )
+  const glDescriptor = descRes.ok ? await descRes.json() : { error: descRes.status, body: await descRes.text() }
+
+  // Query the Gemini API metric with no grouping so we can see raw label values
+  const glParams = new URLSearchParams({
+    filter: `metric.type="${glMetric}"`,
+    "interval.startTime": new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+    "interval.endTime": now.toISOString(),
+    "aggregation.alignmentPeriod": "86400s",
+    "aggregation.perSeriesAligner": "ALIGN_SUM",
+  })
+  const glRes = await fetch(
+    `${MONITORING_API}/projects/${gcpProjectId}/timeSeries?${glParams}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  )
+  const glData = glRes.ok ? await glRes.json() : { error: glRes.status, body: await glRes.text() }
+
   return NextResponse.json({
     projectId: gcpProjectId,
-    metricDescriptors: results,
-    tokenCountQueryResult: tsBody,
+    geminiApiMetricDescriptor: glDescriptor,
+    geminiApiTokenData: glData,
+    vertexTokenCountQueryResult: tsBody,
   })
 }
