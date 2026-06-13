@@ -24,7 +24,10 @@ export async function parseEmailAsReceipt(
   body: string,
 ): Promise<ParsedReceipt> {
   const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return EMPTY
+  if (!apiKey) {
+    console.error("[parse-receipt] ANTHROPIC_API_KEY is not set — skipping LLM parse")
+    return EMPTY
+  }
 
   const prompt = `From: ${from}
 Subject: ${subject}
@@ -36,7 +39,7 @@ Is this a billing receipt or invoice for an AI service/API? If yes, extract the 
 Reply with JSON only (no markdown fences):
 {
   "isAiBillingEmail": <true|false>,
-  "provider": <"openai"|"anthropic"|"google"|"aws"|"groq"|"mistral"|"cohere"|"perplexity"|"cursor"|"together"|"replicate"|"other"|null>,
+  "provider": <"openai"|"anthropic"|"google"|"aws"|"groq"|"mistral"|"cohere"|"perplexity"|"cursor"|"together"|"replicate"|"moonshot"|"deepseek"|"xai"|"huggingface"|"fireworks"|"anyscale"|"other"|null>,
   "amountUsd": <number|null>,
   "billingPeriodStart": <"YYYY-MM-DD"|null>,
   "billingPeriodEnd": <"YYYY-MM-DD"|null>,
@@ -60,13 +63,20 @@ usageType rules: "subscription" = flat-rate monthly plan (ChatGPT Plus, Claude P
       }),
     })
 
-    if (!res.ok) return EMPTY
+    if (!res.ok) {
+      console.error(`[parse-receipt] Anthropic API error ${res.status}: ${await res.text()}`)
+      return EMPTY
+    }
 
     const data = await res.json()
-    const text: string = (data.content?.[0]?.text ?? "{}").trim()
+    const text: string = (data.content?.[0]?.text ?? "{}")
+      .trim()
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/, "")
     const parsed = JSON.parse(text) as ParsedReceipt
     return parsed
-  } catch {
+  } catch (err) {
+    console.error("[parse-receipt] Failed:", err)
     return EMPTY
   }
 }

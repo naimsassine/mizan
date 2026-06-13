@@ -5,7 +5,7 @@ const SCOPE = "https://graph.microsoft.com/Mail.Read offline_access"
 
 // KQL search hitting subject + body + sender for AI provider names
 const AI_SEARCH_QUERY =
-  "openai OR anthropic OR mistral OR cohere OR perplexity OR cursor OR together OR replicate OR huggingface OR groq OR fireworks"
+  "openai OR anthropic OR claude OR chatgpt OR mistral OR cohere OR perplexity OR cursor OR groq OR gemini OR bedrock OR grok OR moonshot OR kimi OR deepseek OR together OR replicate OR huggingface OR fireworks OR anyscale"
 
 export interface OutlookTokens {
   accessToken: string

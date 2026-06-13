@@ -4,7 +4,8 @@ import { parseEmailAsReceipt } from "@/lib/parse-receipt"
 import * as gmail from "@/lib/gmail"
 import * as outlook from "@/lib/outlook"
 
-const GMAIL_DOMAINS = [
+// Emails from known billing domains — high precision
+const FROM_DOMAINS = [
   "openai.com",
   "anthropic.com",
   "mail.anthropic.com",
@@ -19,10 +20,29 @@ const GMAIL_DOMAINS = [
   "groq.com",
   "anyscale.com",
   "fireworks.ai",
-].map((d) => `from:${d}`)
+  "amazon-web-services.com",
+  "cloud.google.com",
+  "x.ai",
+  "moonshot.cn",
+  "deepseek.com",
+  "01.ai",
+  "deepinfra.com",
+]
 
-const GMAIL_BROAD = "(from:amazon-web-services.com OR from:cloud.google.com) (invoice OR receipt OR billing)"
-const GMAIL_QUERY = `(${GMAIL_DOMAINS.join(" OR ")}) OR ${GMAIL_BROAD}`
+// Provider name keywords — catches billing emails from transactional/marketing subdomains
+const AI_KEYWORDS = [
+  "openai", "anthropic", "claude", "chatgpt",
+  "mistral", "cohere", "perplexity", "cursor",
+  "groq", "gemini", "bedrock", "grok",
+  "moonshot", "kimi", "deepseek", "together",
+  "replicate", "huggingface", "fireworks", "anyscale",
+]
+
+const BILLING_KEYWORDS = ["invoice", "receipt", "billing", "payment", "statement"]
+
+const GMAIL_FROM = FROM_DOMAINS.map((d) => `from:${d}`).join(" OR ")
+const GMAIL_KEYWORDS = `subject:(${BILLING_KEYWORDS.join(" OR ")}) (${AI_KEYWORDS.join(" OR ")})`
+const GMAIL_QUERY = `(${GMAIL_FROM}) OR (${GMAIL_KEYWORDS})`
 
 export async function scanEmails(
   emailConnectionId: string,
