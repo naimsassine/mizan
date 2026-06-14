@@ -1,6 +1,6 @@
 import { clerkClient } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
-import { resend } from "@/lib/resend"
+import { getResend } from "@/lib/resend"
 
 const providerLabel: Record<string, string> = {
   openai: "OpenAI",
@@ -100,7 +100,7 @@ export async function sendAlertEmail({
   const providerText = provider ? (providerLabel[provider] ?? provider) : "all providers"
   const subject = `Budget alert: $${spendUsd.toFixed(2)} of $${limitUsd.toFixed(2)} ${period} limit (${providerText})`
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from: process.env.EMAIL_FROM ?? "Mizan <onboarding@resend.dev>",
     to: email,
     subject,

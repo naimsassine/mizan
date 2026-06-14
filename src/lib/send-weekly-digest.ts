@@ -1,6 +1,6 @@
 import { clerkClient } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
-import { resend } from "@/lib/resend"
+import { getResend } from "@/lib/resend"
 import { startOfWeek, subWeeks, endOfWeek } from "date-fns"
 
 const providerLabel: Record<string, string> = {
@@ -216,7 +216,7 @@ export async function sendWeeklyDigest(userId: string) {
   const weekLabel = `Week of ${lastWeekStart.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://mizan.app"
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from: process.env.EMAIL_FROM ?? "Mizan <onboarding@resend.dev>",
     to: email,
     subject: `Your weekly AI spend: $${fmt(thisWeekSpend)} (${pct(thisWeekSpend, priorWeekSpend)} vs last week)`,
