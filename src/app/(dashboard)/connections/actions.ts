@@ -1,10 +1,11 @@
 "use server"
 
-import { auth } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
 import { after } from "next/server"
 import { subMonths, startOfDay } from "date-fns"
 import { prisma } from "@/lib/prisma"
+import { getOwner } from "@/lib/owner"
+import { DEMO_DISABLED } from "@/lib/demo"
 import { encrypt } from "@/lib/encrypt"
 import { revalidateOwnerSpend } from "@/lib/cache"
 import { syncOpenAI, syncOpenAIIncremental } from "@/lib/sync/openai"
@@ -20,7 +21,8 @@ import { syncLiteLLM, syncLiteLLMIncremental } from "@/lib/sync/litellm"
 // isJsonCreds=true means credValue is already a JSON string (used for Bedrock and LiteLLM)
 // Otherwise credValue is a plain API key string
 export async function createConnection(provider: string, credValue: string, isJsonCreds = false) {
-  const { userId, orgId, orgRole } = await auth()
+  const { userId, orgId, orgRole, isDemo } = await getOwner()
+  if (isDemo) return DEMO_DISABLED
   if (!userId) return { error: "Unauthorized" }
   if (orgId && orgRole === "org:viewer") return { error: "Viewers cannot add connections" }
 
@@ -80,7 +82,8 @@ export async function createConnection(provider: string, credValue: string, isJs
 }
 
 export async function triggerSync(connectionId: string) {
-  const { userId, orgId } = await auth()
+  const { userId, orgId, isDemo } = await getOwner()
+  if (isDemo) return DEMO_DISABLED
   if (!userId) return { error: "Unauthorized" }
 
   const ownerId = orgId ?? userId
@@ -110,7 +113,8 @@ export async function triggerSync(connectionId: string) {
 }
 
 export async function deleteConnection(id: string) {
-  const { userId, orgId, orgRole } = await auth()
+  const { userId, orgId, orgRole, isDemo } = await getOwner()
+  if (isDemo) return DEMO_DISABLED
   if (!userId) return { error: "Unauthorized" }
   if (orgId && orgRole === "org:viewer") return { error: "Viewers cannot delete connections" }
 
@@ -125,7 +129,8 @@ export async function deleteConnection(id: string) {
 }
 
 export async function updateGcpProject(connectionId: string, projectId: string) {
-  const { userId, orgId } = await auth()
+  const { userId, orgId, isDemo } = await getOwner()
+  if (isDemo) return DEMO_DISABLED
   if (!userId) return { error: "Unauthorized" }
 
   const ownerId = orgId ?? userId

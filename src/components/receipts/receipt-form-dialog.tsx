@@ -23,6 +23,7 @@ import { createReceipt, updateReceipt, deleteReceipt } from "@/app/(dashboard)/r
 import { format } from "date-fns"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { blockedInDemo, IS_DEMO } from "@/lib/demo-client"
 
 const PROVIDERS = [
   { value: "openai", label: "OpenAI" },
@@ -91,6 +92,7 @@ export function ReceiptFormDialog({ receipt }: Props) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
+    if (blockedInDemo()) return
     const amountNum = parseFloat(amount)
     if (isNaN(amountNum) || amountNum <= 0) {
       setError("Enter a valid amount greater than 0")
@@ -121,6 +123,7 @@ export function ReceiptFormDialog({ receipt }: Props) {
   }
 
   function handleDelete() {
+    if (blockedInDemo()) return
     setOpen(false)
     let cancelled = false
     const tid = window.setTimeout(() => {
@@ -147,11 +150,11 @@ export function ReceiptFormDialog({ receipt }: Props) {
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset() }}>
       {isEdit ? (
-        <DialogTrigger render={<button className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-300 transition-colors hover:bg-zinc-100 hover:text-zinc-600" />}>
+        <DialogTrigger render={<button disabled={IS_DEMO} className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-300 transition-colors hover:bg-zinc-100 hover:text-zinc-600" />}>
           <Pencil className="h-3.5 w-3.5" />
         </DialogTrigger>
       ) : (
-        <DialogTrigger render={<Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" />}>
+        <DialogTrigger render={<Button size="sm" variant="outline" disabled={IS_DEMO} className="h-8 gap-1.5 text-xs" />}>
           <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
           Add receipt
         </DialogTrigger>
@@ -257,7 +260,7 @@ export function ReceiptFormDialog({ receipt }: Props) {
               <button
                 type="button"
                 onClick={handleDelete}
-                disabled={isDeleting}
+                disabled={isDeleting || IS_DEMO}
                 className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600 transition-colors"
               >
                 {isDeleting ? (
@@ -283,7 +286,7 @@ export function ReceiptFormDialog({ receipt }: Props) {
               <Button
                 type="submit"
                 size="sm"
-                disabled={isPending}
+                disabled={isPending || IS_DEMO}
                 className="h-8 bg-zinc-900 text-xs text-white hover:bg-zinc-700"
               >
                 {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : isEdit ? "Save" : "Add"}

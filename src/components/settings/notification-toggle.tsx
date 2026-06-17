@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { saveNotificationEmail } from "@/app/(dashboard)/settings/actions"
 import { Loader2 } from "lucide-react"
+import { blockedInDemo, IS_DEMO } from "@/lib/demo-client"
 import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
 
@@ -16,6 +17,7 @@ export function NotificationToggle({ defaultEnabled, ownerId }: Props) {
   const [isPending, startTransition] = useTransition()
 
   function handleToggle() {
+    if (blockedInDemo()) return
     const next = !enabled
     setEnabled(next)
     startTransition(async () => {
@@ -32,7 +34,7 @@ export function NotificationToggle({ defaultEnabled, ownerId }: Props) {
           role="switch"
           aria-checked={enabled}
           onClick={handleToggle}
-          disabled={isPending}
+          disabled={isPending || IS_DEMO}
           className={cn(
             "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
             enabled ? "bg-zinc-900" : "bg-zinc-200"

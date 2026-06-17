@@ -8,6 +8,7 @@ import { triggerEmailScan } from "@/app/(dashboard)/receipts/actions"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { DisconnectEmailButton } from "./disconnect-email-button"
+import { blockedInDemo, IS_DEMO } from "@/lib/demo-client"
 
 interface Props {
   id: string
@@ -50,6 +51,7 @@ export function EmailConnectionRow({
   }, [needsPoll, router])
 
   function handleScan() {
+    if (blockedInDemo()) return
     startTransition(async () => {
       prevScannedAt.current = lastScannedAt?.getTime() ?? null
       setScanning(true)
@@ -105,7 +107,7 @@ export function EmailConnectionRow({
           </Badge>
           <button
             onClick={handleScan}
-            disabled={isPending || isScanning}
+            disabled={isPending || isScanning || IS_DEMO}
             title="Scan inbox now"
             aria-label="Scan inbox now"
             className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors duration-200 hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 disabled:opacity-50 dark:hover:bg-zinc-800"

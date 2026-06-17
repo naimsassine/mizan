@@ -4,6 +4,7 @@ import { useTransition } from "react"
 import { Loader2 } from "lucide-react"
 import { reclassifyReceipt } from "@/app/(dashboard)/receipts/actions"
 import { toast } from "sonner"
+import { blockedInDemo, IS_DEMO } from "@/lib/demo-client"
 
 interface Props {
   id: string
@@ -14,6 +15,7 @@ export function ReclassifyBadge({ id, usageType }: Props) {
   const [isPending, startTransition] = useTransition()
 
   function toggle() {
+    if (blockedInDemo()) return
     const next = usageType === "api" ? "subscription" : "api"
     startTransition(async () => {
       await reclassifyReceipt(id, next)
@@ -24,7 +26,7 @@ export function ReclassifyBadge({ id, usageType }: Props) {
   return (
     <button
       onClick={toggle}
-      disabled={isPending}
+      disabled={isPending || IS_DEMO}
       title={`Click to reclassify as ${usageType === "api" ? "subscription" : "API usage"}`}
       className={`inline-flex items-center gap-1 h-5 px-1.5 rounded-md border text-[10px] font-medium transition-colors cursor-pointer
         ${usageType === "subscription"

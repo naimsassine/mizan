@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { saveBackfillMonths } from "@/app/(dashboard)/settings/actions"
 import { Loader2 } from "lucide-react"
+import { blockedInDemo, IS_DEMO } from "@/lib/demo-client"
 
 const options = [
   { value: "1", label: "1 month" },
@@ -27,6 +28,7 @@ export function BackfillMonthsForm({ defaultMonths, ownerType, ownerId }: Props)
 
   function handleChange(value: string | null) {
     if (!value) return
+    if (blockedInDemo()) return
     setMonths(value)
     setSaved(false)
     startTransition(async () => {
@@ -39,7 +41,7 @@ export function BackfillMonthsForm({ defaultMonths, ownerType, ownerId }: Props)
     <div className="flex items-center gap-4">
       <Label className="text-xs text-zinc-600">Backfill window for new connections</Label>
       <div className="flex items-center gap-2">
-        <Select value={months} onValueChange={handleChange} disabled={isPending}>
+        <Select value={months} onValueChange={handleChange} disabled={isPending || IS_DEMO}>
           <SelectTrigger className="h-8 w-44 text-xs">
             <SelectValue />
           </SelectTrigger>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@clerk/nextjs/server"
+import { getOwner } from "@/lib/owner"
 import { prisma } from "@/lib/prisma"
 import { subDays, format } from "date-fns"
 import type { Provider } from "@/generated/prisma/client"
@@ -15,7 +15,7 @@ function csvCell(value: string): string {
 }
 
 export async function GET(req: NextRequest) {
-  const { userId, orgId } = await auth()
+  const { userId, orgId } = await getOwner()
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const ownerId = orgId ?? userId

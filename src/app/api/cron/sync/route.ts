@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { revalidateOwnerSpend } from "@/lib/cache"
+import { IS_DEMO } from "@/lib/demo"
 
 export const maxDuration = 300
 import { syncOpenAIIncremental } from "@/lib/sync/openai"
@@ -19,6 +20,9 @@ import { startOfDay, startOfWeek, startOfMonth } from "date-fns"
 
 // Called daily by Vercel cron — syncs all active connections then checks budget alerts
 export async function GET(req: Request) {
+  // The demo has no real connections to sync and must never call provider APIs / email / Resend.
+  if (IS_DEMO) return NextResponse.json({ skipped: "demo" })
+
   const authHeader = req.headers.get("authorization")
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

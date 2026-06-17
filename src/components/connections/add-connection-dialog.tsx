@@ -10,6 +10,7 @@ import { Plus, Loader2, ExternalLink } from "lucide-react"
 import { createConnection } from "@/app/(dashboard)/connections/actions"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { blockedInDemo, IS_DEMO } from "@/lib/demo-client"
 
 const providers = [
   {
@@ -134,6 +135,7 @@ export function AddConnectionDialog() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
+    if (blockedInDemo()) return
 
     if (isBedrock) {
       if (!awsAccessKeyId.trim() || !awsSecretKey.trim()) return
@@ -179,17 +181,17 @@ export function AddConnectionDialog() {
     })
   }
 
-  const canSubmit = isBedrock
+  const canSubmit = (isBedrock
     ? awsAccessKeyId.trim() && awsSecretKey.trim() && !isPending
     : isLiteLLM
       ? litellmUrl.trim() && apiKey.trim() && !isPending
-      : provider && apiKey.trim() && !isPending
+      : provider && apiKey.trim() && !isPending) && !IS_DEMO
 
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset() }}>
       <DialogTrigger
         render={
-          <Button size="sm" className="bg-zinc-900 text-white hover:bg-zinc-700 gap-1.5" />
+          <Button size="sm" disabled={IS_DEMO} className="bg-zinc-900 text-white hover:bg-zinc-700 gap-1.5" />
         }
       >
         <Plus className="h-3.5 w-3.5" />
@@ -241,7 +243,8 @@ export function AddConnectionDialog() {
               </p>
               <button
                 type="button"
-                onClick={() => { setOpen(false); window.location.href = "/api/auth/gcp" }}
+                onClick={() => { if (blockedInDemo()) return; setOpen(false); window.location.href = "/api/auth/gcp" }}
+                disabled={IS_DEMO}
                 className="flex items-center gap-1.5 text-xs font-medium text-blue-700 hover:text-blue-900 transition-colors"
               >
                 Connect with Google

@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server"
+import { getOwner } from "@/lib/owner"
 import { Suspense } from "react"
 import { unstable_cache } from "next/cache"
 import { subDays, format, startOfDay, eachDayOfInterval } from "date-fns"
@@ -193,7 +193,7 @@ export default async function UsagePage({
 }: {
   searchParams: Promise<{ range?: string; provider?: string }>
 }) {
-  const { userId, orgId } = await auth()
+  const { userId, orgId } = await getOwner()
   const ownerId = orgId ?? userId!
 
   const { range: rangeParam, provider: providerParam } = await searchParams

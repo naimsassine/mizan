@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server"
+import { getOwner } from "@/lib/owner"
 import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
@@ -20,7 +20,7 @@ const PROVIDER_HISTORY_LIMITS: Record<string, string> = {
 }
 
 export default async function SettingsPage() {
-  const { userId, orgId } = await auth()
+  const { userId, orgId } = await getOwner()
 
   let backfillMonths = 3
   let notificationEmail = true

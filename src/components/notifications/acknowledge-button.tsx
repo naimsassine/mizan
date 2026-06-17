@@ -4,12 +4,14 @@ import { useTransition } from "react"
 import { CheckCheck, Loader2 } from "lucide-react"
 import { acknowledgeAlert } from "@/app/(dashboard)/notifications/actions"
 import { useRouter } from "next/navigation"
+import { blockedInDemo, IS_DEMO } from "@/lib/demo-client"
 
 export function AcknowledgeButton({ id }: { id: string }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
   function handleClick() {
+    if (blockedInDemo()) return
     startTransition(async () => {
       await acknowledgeAlert(id)
       router.refresh()
@@ -19,7 +21,7 @@ export function AcknowledgeButton({ id }: { id: string }) {
   return (
     <button
       onClick={handleClick}
-      disabled={isPending}
+      disabled={isPending || IS_DEMO}
       title="Acknowledge"
       className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors duration-200 hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-50"
     >

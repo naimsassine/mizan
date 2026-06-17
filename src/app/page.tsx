@@ -2,8 +2,12 @@ import { redirect } from "next/navigation"
 import { auth } from "@clerk/nextjs/server"
 import Link from "next/link"
 import { Scale, BarChart2, Bell, Plug, ArrowRight, Check } from "lucide-react"
+import { IS_DEMO } from "@/lib/demo"
 
 export default async function RootPage() {
+  // In demo mode there's no auth — the marketing page's only job is to drop visitors into the app.
+  if (IS_DEMO) redirect("/overview")
+
   const { userId } = await auth()
   if (userId) redirect("/overview")
 

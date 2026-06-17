@@ -1,14 +1,16 @@
 "use server"
 
-import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { getOwner } from "@/lib/owner"
+import { DEMO_DISABLED } from "@/lib/demo"
 
 export async function saveBackfillMonths(
   ownerType: "user" | "org",
   ownerId: string,
   months: number
 ) {
-  const { userId, orgId } = await auth()
+  const { userId, orgId, isDemo } = await getOwner()
+  if (isDemo) return DEMO_DISABLED
   if (!userId) return { error: "Unauthorized" }
 
   const authorizedId = orgId ?? userId
@@ -36,7 +38,8 @@ export async function saveBackfillMonths(
 }
 
 export async function saveNotificationEmail(ownerId: string, enabled: boolean) {
-  const { userId } = await auth()
+  const { userId, isDemo } = await getOwner()
+  if (isDemo) return DEMO_DISABLED
   if (!userId || userId !== ownerId) return { error: "Unauthorized" }
 
   await prisma.userSettings.upsert({

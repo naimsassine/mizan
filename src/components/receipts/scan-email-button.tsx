@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { RefreshCw, Loader2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { triggerEmailScan } from "@/app/(dashboard)/receipts/actions"
+import { blockedInDemo, IS_DEMO } from "@/lib/demo-client"
 
 type State = "idle" | "pending" | "queued"
 
@@ -13,6 +14,7 @@ export function ScanEmailButton({ id }: { id: string }) {
   const router = useRouter()
 
   function handleClick() {
+    if (blockedInDemo()) return
     setState("pending")
     startTransition(async () => {
       await triggerEmailScan(id)
@@ -32,7 +34,7 @@ export function ScanEmailButton({ id }: { id: string }) {
   return (
     <button
       onClick={handleClick}
-      disabled={isPending}
+      disabled={isPending || IS_DEMO}
       title="Scan inbox now"
       aria-label="Scan inbox now"
       className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors duration-200 hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 disabled:opacity-50 dark:hover:bg-zinc-800"

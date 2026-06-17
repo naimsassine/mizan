@@ -5,8 +5,11 @@ import { exchangeCode, getGmailProfile } from "@/lib/gmail"
 import { encrypt } from "@/lib/encrypt"
 import { prisma } from "@/lib/prisma"
 import { scanEmails } from "@/lib/scan-emails"
+import { IS_DEMO } from "@/lib/demo"
 
 export async function GET(req: NextRequest) {
+  if (IS_DEMO) return NextResponse.redirect(new URL("/receipts", req.url))
+
   const { userId, orgId } = await auth()
   if (!userId) return NextResponse.redirect(new URL("/sign-in", req.url))
 

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { createBudgetRule } from "@/app/(dashboard)/notifications/actions"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { blockedInDemo, IS_DEMO } from "@/lib/demo-client"
 
 interface SpendSuggestions {
   monthly: number
@@ -30,6 +31,7 @@ export function AddRuleDialog({ spendSuggestions }: { spendSuggestions?: SpendSu
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
+    if (blockedInDemo()) return
     const fd = new FormData()
     fd.set("provider", provider)
     fd.set("period", period)
@@ -66,7 +68,7 @@ export function AddRuleDialog({ spendSuggestions }: { spendSuggestions?: SpendSu
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button size="sm" className="h-8 bg-zinc-900 text-xs text-white hover:bg-zinc-700 gap-1.5" />
+          <Button size="sm" disabled={IS_DEMO} className="h-8 bg-zinc-900 text-xs text-white hover:bg-zinc-700 gap-1.5" />
         }
       >
         <Plus className="h-3.5 w-3.5" />
@@ -150,7 +152,7 @@ export function AddRuleDialog({ spendSuggestions }: { spendSuggestions?: SpendSu
             </Button>
             <Button
               type="submit" size="sm"
-              disabled={!limit || isPending}
+              disabled={!limit || isPending || IS_DEMO}
               className="h-8 bg-zinc-900 text-xs text-white hover:bg-zinc-700"
             >
               {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Create"}
