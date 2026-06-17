@@ -6,7 +6,7 @@ import { REAL_APP_URL } from "@/lib/demo"
 // attention to itself. The right side links to the real production app when REAL_APP_URL is set.
 export function DemoBanner() {
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-zinc-100 bg-zinc-50 px-4 py-1.5 text-[11px] text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+    <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-zinc-100 bg-zinc-50 px-4 py-1.5 text-[11px] text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
       <div className="flex min-w-0 items-center gap-1.5">
         <FlaskConical className="h-3 w-3 shrink-0" strokeWidth={1.5} />
         <span className="truncate">Demo mode — sample data. Editing is disabled.</span>

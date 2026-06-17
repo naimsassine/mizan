@@ -33,25 +33,25 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const unackAlerts = ownerId ? await getUnackAlerts(ownerId) : 0
 
   return (
-    <div className="flex h-full flex-col">
-      {isDemo && <DemoBanner />}
-      <div className="flex min-h-0 flex-1">
-        {/* Desktop sidebar — hidden on mobile */}
-        <Sidebar unackAlerts={unackAlerts} />
+    <div className="flex h-full">
+      {/* Desktop sidebar — hidden on mobile */}
+      <Sidebar unackAlerts={unackAlerts} />
 
-        {/* Mobile top bar + drawer — hidden on md+ */}
-        <MobileNav unackAlerts={unackAlerts} />
+      {/* Mobile top bar + drawer — hidden on md+ */}
+      <MobileNav unackAlerts={unackAlerts} />
 
-        {/* Desktop top bar — hidden on mobile */}
-        <TopBar />
+      {/* Desktop top bar — hidden on mobile */}
+      <TopBar />
 
-        {/* Cmd+K command palette */}
-        <CommandPalette />
+      {/* Cmd+K command palette */}
+      <CommandPalette />
 
-        <main className="flex-1 md:pl-14 pt-14 md:pt-0 overflow-auto bg-zinc-50/60 dark:bg-zinc-950">
-          {children}
-        </main>
-      </div>
+      <main className="flex-1 md:pl-14 pt-14 md:pt-0 overflow-auto bg-zinc-50/60 dark:bg-zinc-950">
+        {/* Rendered inside the content column (past the fixed sidebar / mobile bar) and pinned to
+            its top, so it never sits under the sidebar. */}
+        {isDemo && <DemoBanner />}
+        {children}
+      </main>
     </div>
   )
 }
