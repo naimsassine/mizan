@@ -186,57 +186,62 @@ async function main() {
     console.log(`  ${spec.provider}: ${records.length} usage records over ${spec.days} days`)
   }
 
-  // 4) A few receipts (subscriptions + API invoices) for the Receipts page.
-  await prisma.receipt.createMany({
-    data: [
-      {
-        ownerId: DEMO_OWNER_ID,
-        ownerType: OWNER_TYPE,
-        provider: "cursor",
-        amountUsd: 20.0,
-        usageType: "subscription",
-        source: "receipt_email",
-        billingPeriodStart: dayUTC(38),
-        billingPeriodEnd: dayUTC(8),
-        parsedAt: dayUTC(8),
-      },
-      {
-        ownerId: DEMO_OWNER_ID,
-        ownerType: OWNER_TYPE,
-        provider: "openai",
-        amountUsd: 20.0,
-        usageType: "subscription",
-        source: "receipt_email",
-        billingPeriodStart: dayUTC(34),
-        billingPeriodEnd: dayUTC(4),
-        parsedAt: dayUTC(4),
-      },
-      {
-        ownerId: DEMO_OWNER_ID,
-        ownerType: OWNER_TYPE,
-        provider: "anthropic",
-        amountUsd: 128.45,
-        usageType: "api",
-        source: "receipt_upload",
-        invoiceId: "INV-2026-0417",
-        billingPeriodStart: dayUTC(45),
-        billingPeriodEnd: dayUTC(15),
-        parsedAt: dayUTC(13),
-      },
-      {
-        ownerId: DEMO_OWNER_ID,
-        ownerType: OWNER_TYPE,
-        provider: "openai",
-        amountUsd: 312.9,
-        usageType: "api",
-        source: "receipt_email",
-        invoiceId: "A1B2-C3D4",
-        billingPeriodStart: dayUTC(45),
-        billingPeriodEnd: dayUTC(15),
-        parsedAt: dayUTC(14),
-      },
-    ],
+  // 4) Receipts — subscriptions + API invoices for the Receipts page.
+  //    Subscription billing periods are kept recent (current cycle within the last ~30 days) so
+  //    they also show up in the Usage tab's "Subscriptions" section under the default 30-day range,
+  //    with an older cycle each so the 90-day view shows recurrence.
+  const sub = (
+    provider: string,
+    amountUsd: number,
+    startDaysAgo: number,
+    endDaysAgo: number,
+  ) => ({
+    ownerId: DEMO_OWNER_ID,
+    ownerType: OWNER_TYPE,
+    provider,
+    amountUsd,
+    usageType: "subscription" as const,
+    source: "receipt_email",
+    billingPeriodStart: dayUTC(startDaysAgo),
+    billingPeriodEnd: dayUTC(endDaysAgo),
+    parsedAt: dayUTC(startDaysAgo),
   })
+  const receipts = [
+    // Current cycle (visible in the default 30-day Usage view)
+    sub("openai", 20.0, 24, -6), // ChatGPT Plus
+    sub("cursor", 20.0, 20, -10), // Cursor Pro
+    sub("anthropic", 20.0, 16, -14), // Claude Pro
+    sub("perplexity", 20.0, 12, -18), // Perplexity Pro
+    // Previous cycle (shows recurrence in the 90-day view)
+    sub("openai", 20.0, 54, 24),
+    sub("cursor", 20.0, 50, 20),
+    // API invoices (Receipts tab / overview)
+    {
+      ownerId: DEMO_OWNER_ID,
+      ownerType: OWNER_TYPE,
+      provider: "anthropic",
+      amountUsd: 128.45,
+      usageType: "api" as const,
+      source: "receipt_upload",
+      invoiceId: "INV-2026-0417",
+      billingPeriodStart: dayUTC(45),
+      billingPeriodEnd: dayUTC(15),
+      parsedAt: dayUTC(13),
+    },
+    {
+      ownerId: DEMO_OWNER_ID,
+      ownerType: OWNER_TYPE,
+      provider: "openai",
+      amountUsd: 312.9,
+      usageType: "api" as const,
+      source: "receipt_email",
+      invoiceId: "A1B2-C3D4",
+      billingPeriodStart: dayUTC(45),
+      billingPeriodEnd: dayUTC(15),
+      parsedAt: dayUTC(14),
+    },
+  ]
+  await prisma.receipt.createMany({ data: receipts })
 
   // 5) Budget rules + one triggered (unacknowledged) alert so the bell badge + history populate.
   const monthlyRule = await prisma.budgetRule.create({
@@ -278,7 +283,7 @@ async function main() {
     },
   })
 
-  console.log(`Done. ${usageRows} usage records, 4 connections, 4 receipts, 3 budget rules, 1 alert.`)
+  console.log(`Done. ${usageRows} usage records, 4 connections, ${receipts.length} receipts, 3 budget rules, 1 alert.`)
 }
 
 main()
