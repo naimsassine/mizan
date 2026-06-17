@@ -1,8 +1,12 @@
 "use client"
 
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs"
+import { IS_DEMO } from "@/lib/demo"
 
 export function TopBar() {
+  // No Clerk session/provider in demo mode — these components would have nothing to show.
+  if (IS_DEMO) return null
+
   return (
     <div className="fixed top-3 right-4 z-10 hidden md:flex items-center gap-2">
       <OrganizationSwitcher

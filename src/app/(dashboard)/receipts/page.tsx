@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server"
+import { getOwner } from "@/lib/owner"
 import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -36,7 +36,7 @@ export default async function ReceiptsPage({
 }: {
   searchParams: Promise<{ error?: string; provider?: string; type?: string; page?: string }>
 }) {
-  const { userId, orgId } = await auth()
+  const { userId, orgId } = await getOwner()
   const ownerId = orgId ?? userId!
   const { error, provider: providerParam, type: typeParam, page: pageParam } = await searchParams
 

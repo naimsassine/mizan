@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react"
 import { Upload, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { uploadReceipt } from "@/app/(dashboard)/receipts/actions"
+import { blockedInDemo, IS_DEMO } from "@/lib/demo-client"
 
 export function UploadReceiptButton() {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -11,6 +12,7 @@ export function UploadReceiptButton() {
   const [uploadError, setUploadError] = useState<string | null>(null)
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (blockedInDemo()) return
     const file = e.target.files?.[0]
     if (!file) return
     setUploadError(null)
@@ -37,8 +39,8 @@ export function UploadReceiptButton() {
       <Button
         size="sm"
         variant="outline"
-        onClick={() => { setUploadError(null); inputRef.current?.click() }}
-        disabled={isPending}
+        onClick={() => { if (blockedInDemo()) return; setUploadError(null); inputRef.current?.click() }}
+        disabled={isPending || IS_DEMO}
         className="h-8 gap-1.5 text-xs"
       >
         {isPending ? (

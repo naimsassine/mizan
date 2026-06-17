@@ -4,11 +4,13 @@ import { useTransition } from "react"
 import { RefreshCw, Loader2 } from "lucide-react"
 import { triggerSync } from "@/app/(dashboard)/connections/actions"
 import { toast } from "sonner"
+import { blockedInDemo, IS_DEMO } from "@/lib/demo-client"
 
 export function SyncButton({ id }: { id: string }) {
   const [isPending, startTransition] = useTransition()
 
   function handleClick() {
+    if (blockedInDemo()) return
     startTransition(async () => {
       try {
         await triggerSync(id)
@@ -22,7 +24,7 @@ export function SyncButton({ id }: { id: string }) {
   return (
     <button
       onClick={handleClick}
-      disabled={isPending}
+      disabled={isPending || IS_DEMO}
       title="Sync now"
       aria-label="Sync connection now"
       className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors duration-200 hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 disabled:opacity-50 dark:hover:bg-zinc-800"

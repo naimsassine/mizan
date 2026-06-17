@@ -5,6 +5,7 @@ import { encrypt } from "@/lib/encrypt"
 import { prisma } from "@/lib/prisma"
 import { syncGemini } from "@/lib/sync/gemini"
 import { subMonths, startOfDay } from "date-fns"
+import { IS_DEMO } from "@/lib/demo"
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token"
 
@@ -46,6 +47,8 @@ async function listProjects(accessToken: string): Promise<{ projectId: string; n
 }
 
 export async function GET(req: NextRequest) {
+  if (IS_DEMO) return NextResponse.redirect(new URL("/connections", req.url))
+
   const { userId, orgId } = await auth()
   if (!userId) return NextResponse.redirect(new URL("/sign-in", req.url))
 

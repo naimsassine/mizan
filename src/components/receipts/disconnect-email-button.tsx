@@ -6,12 +6,14 @@ import { disconnectEmailAccount } from "@/app/(dashboard)/receipts/actions"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
+import { blockedInDemo, IS_DEMO } from "@/lib/demo-client"
 
 export function DisconnectEmailButton({ id, email }: { id: string; email: string }) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   function handleConfirm() {
+    if (blockedInDemo()) return
     startTransition(async () => {
       await disconnectEmailAccount(id)
       setOpen(false)
@@ -22,7 +24,8 @@ export function DisconnectEmailButton({ id, email }: { id: string; email: string
   return (
     <>
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => { if (blockedInDemo()) return; setOpen(true) }}
+        disabled={IS_DEMO}
         title="Disconnect email account"
         aria-label={`Disconnect ${email}`}
         className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors duration-200 hover:bg-red-50 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
@@ -59,7 +62,7 @@ export function DisconnectEmailButton({ id, email }: { id: string; email: string
               type="button"
               size="sm"
               onClick={handleConfirm}
-              disabled={isPending}
+              disabled={isPending || IS_DEMO}
               className="h-8 bg-red-600 text-xs text-white hover:bg-red-700"
             >
               {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Disconnect"}

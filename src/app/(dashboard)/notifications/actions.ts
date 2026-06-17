@@ -1,14 +1,16 @@
 "use server"
 
-import { auth } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
+import { getOwner } from "@/lib/owner"
+import { DEMO_DISABLED } from "@/lib/demo"
 import { revalidateOwnerAlerts } from "@/lib/cache"
 
 const VALID_PROVIDERS = ["openai", "anthropic", "gemini", "bedrock", "groq", "mistral", "grok", "openrouter", "litellm"]
 
 export async function createBudgetRule(formData: FormData) {
-  const { userId, orgId, orgRole } = await auth()
+  const { userId, orgId, orgRole, isDemo } = await getOwner()
+  if (isDemo) return DEMO_DISABLED
   if (!userId) return { error: "Unauthorized" }
   if (orgId && orgRole === "org:viewer") return { error: "Viewers cannot create budget rules" }
 
@@ -43,7 +45,8 @@ export async function createBudgetRule(formData: FormData) {
 }
 
 export async function deleteBudgetRule(id: string) {
-  const { userId, orgId, orgRole } = await auth()
+  const { userId, orgId, orgRole, isDemo } = await getOwner()
+  if (isDemo) return DEMO_DISABLED
   if (!userId) return { error: "Unauthorized" }
   if (orgId && orgRole === "org:viewer") return { error: "Viewers cannot delete budget rules" }
 
@@ -54,7 +57,8 @@ export async function deleteBudgetRule(id: string) {
 }
 
 export async function acknowledgeAlert(id: string) {
-  const { userId, orgId } = await auth()
+  const { userId, orgId, isDemo } = await getOwner()
+  if (isDemo) return DEMO_DISABLED
   if (!userId) return { error: "Unauthorized" }
 
   const ownerId = orgId ?? userId
@@ -81,7 +85,8 @@ export async function saveDigestSettings(data: {
   weeklyDigestDay: number
   weeklyDigestProviders: string[]
 }) {
-  const { userId } = await auth()
+  const { userId, isDemo } = await getOwner()
+  if (isDemo) return DEMO_DISABLED
   if (!userId) return { error: "Unauthorized" }
 
   if (data.weeklyDigestDay < 0 || data.weeklyDigestDay > 6) return { error: "Invalid day" }

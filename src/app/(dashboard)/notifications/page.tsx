@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server"
+import { getOwner } from "@/lib/owner"
 import { unstable_cache } from "next/cache"
 import { subDays, startOfMonth, endOfMonth, startOfDay, format, differenceInCalendarDays } from "date-fns"
 import { prisma } from "@/lib/prisma"
@@ -120,7 +120,7 @@ async function loadNotificationSpend(ownerId: string) {
 }
 
 export default async function NotificationsPage() {
-  const { userId, orgId } = await auth()
+  const { userId, orgId } = await getOwner()
   const ownerId = orgId ?? userId!
   const isOrg = !!orgId
 

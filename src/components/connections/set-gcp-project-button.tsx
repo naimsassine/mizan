@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { updateGcpProject } from "@/app/(dashboard)/connections/actions"
+import { blockedInDemo, IS_DEMO } from "@/lib/demo-client"
 
 export function SetGcpProjectButton({ connectionId }: { connectionId: string }) {
   const [open, setOpen] = useState(false)
@@ -16,6 +17,7 @@ export function SetGcpProjectButton({ connectionId }: { connectionId: string }) 
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (blockedInDemo()) return
     if (!projectId.trim()) return
     setError("")
     startTransition(async () => {
@@ -32,7 +34,8 @@ export function SetGcpProjectButton({ connectionId }: { connectionId: string }) 
   return (
     <>
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => { if (blockedInDemo()) return; setOpen(true) }}
+        disabled={IS_DEMO}
         title="Set GCP project"
         className="flex h-7 items-center gap-1 rounded-md px-2 text-[10px] text-amber-600 transition-colors hover:bg-amber-50"
       >
@@ -78,7 +81,7 @@ export function SetGcpProjectButton({ connectionId }: { connectionId: string }) 
               <Button
                 type="submit"
                 size="sm"
-                disabled={isPending || !projectId.trim()}
+                disabled={isPending || !projectId.trim() || IS_DEMO}
                 className="h-8 bg-zinc-900 text-xs text-white hover:bg-zinc-700"
               >
                 {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save & sync"}

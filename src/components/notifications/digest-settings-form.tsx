@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { saveDigestSettings } from "@/app/(dashboard)/notifications/actions"
+import { blockedInDemo, IS_DEMO } from "@/lib/demo-client"
 
 const DAYS = [
   { value: "0", label: "Sunday" },
@@ -61,6 +62,7 @@ export function DigestSettingsForm({ defaultEnabled, defaultDay, defaultProvider
   }
 
   function handleSave() {
+    if (blockedInDemo()) return
     startTransition(async () => {
       await saveDigestSettings({
         weeklyDigest: enabled,
@@ -87,7 +89,8 @@ export function DigestSettingsForm({ defaultEnabled, defaultDay, defaultProvider
           role="switch"
           aria-checked={enabled}
           onClick={() => { setEnabled((v) => !v); setSaved(false) }}
-          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none ${
+          disabled={IS_DEMO}
+          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
             enabled ? "bg-zinc-900" : "bg-zinc-200"
           }`}
         >
@@ -107,6 +110,7 @@ export function DigestSettingsForm({ defaultEnabled, defaultDay, defaultProvider
             <Select
               value={day}
               onValueChange={(v) => { if (v !== null) { setDay(v); setSaved(false) } }}
+              disabled={IS_DEMO}
             >
               <SelectTrigger className="h-9 w-48 text-sm">
                 <SelectValue />
@@ -128,7 +132,8 @@ export function DigestSettingsForm({ defaultEnabled, defaultDay, defaultProvider
               <button
                 type="button"
                 onClick={toggleAll}
-                className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                disabled={IS_DEMO}
+                className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                   allSelected
                     ? "border-zinc-900 bg-zinc-900 text-white"
                     : "border-zinc-200 text-zinc-500 hover:border-zinc-400 hover:text-zinc-700"
@@ -143,7 +148,8 @@ export function DigestSettingsForm({ defaultEnabled, defaultDay, defaultProvider
                     key={p.value}
                     type="button"
                     onClick={() => toggleProvider(p.value)}
-                    className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                    disabled={IS_DEMO}
+                    className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                       selected
                         ? "border-zinc-900 bg-zinc-900 text-white"
                         : "border-zinc-200 text-zinc-500 hover:border-zinc-400 hover:text-zinc-700"
@@ -168,7 +174,7 @@ export function DigestSettingsForm({ defaultEnabled, defaultDay, defaultProvider
           type="button"
           size="sm"
           onClick={handleSave}
-          disabled={isPending}
+          disabled={isPending || IS_DEMO}
           className="h-8 bg-zinc-900 text-xs text-white hover:bg-zinc-700"
         >
           {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}

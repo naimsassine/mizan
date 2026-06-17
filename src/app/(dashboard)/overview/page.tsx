@@ -1,4 +1,6 @@
-import { auth, currentUser } from "@clerk/nextjs/server"
+import { currentUser } from "@clerk/nextjs/server"
+import { getOwner } from "@/lib/owner"
+import { IS_DEMO } from "@/lib/demo"
 import { Suspense } from "react"
 import { unstable_cache } from "next/cache"
 import {
@@ -260,7 +262,7 @@ export default async function OverviewPage({
 }: {
   searchParams: Promise<{ range?: string }>
 }) {
-  const { userId, orgId } = await auth()
+  const { userId, orgId } = await getOwner()
   const ownerId = orgId ?? userId!
 
   const { range: rangeParam } = await searchParams
@@ -278,7 +280,8 @@ export default async function OverviewPage({
 }
 
 async function OverviewBody({ ownerId, chartDays }: { ownerId: string; chartDays: Range }) {
-  const user = await currentUser()
+  // Demo mode has no Clerk session — skip the user lookup and fall back to a generic greeting.
+  const user = IS_DEMO ? null : await currentUser()
   const {
     mtdSpend,
     apiSpend,

@@ -18,6 +18,7 @@ import {
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs"
 import { cn } from "@/lib/utils"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { IS_DEMO } from "@/lib/demo"
 
 const navItems = [
   { href: "/overview", icon: LayoutDashboard, label: "Overview" },
@@ -59,7 +60,7 @@ export function MobileNav({ unackAlerts = 0 }: { unackAlerts?: number }) {
             </Link>
           )}
           <ThemeToggle />
-          <UserButton appearance={{ elements: { avatarBox: "h-7 w-7" } }} />
+          {!IS_DEMO && <UserButton appearance={{ elements: { avatarBox: "h-7 w-7" } }} />}
         </div>
       </header>
 
@@ -120,20 +121,22 @@ export function MobileNav({ unackAlerts = 0 }: { unackAlerts?: number }) {
               })}
             </nav>
 
-            {/* Bottom: org switcher */}
-            <div className="border-t border-zinc-100 dark:border-zinc-800 p-4 space-y-3">
-              <OrganizationSwitcher
-                appearance={{
-                  elements: {
-                    rootBox: "w-full",
-                    organizationSwitcherTrigger:
-                      "w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors",
-                    organizationPreviewTextContainer: "text-sm",
-                    avatarBox: "h-5 w-5",
-                  },
-                }}
-              />
-            </div>
+            {/* Bottom: org switcher — hidden in demo (no Clerk session) */}
+            {!IS_DEMO && (
+              <div className="border-t border-zinc-100 dark:border-zinc-800 p-4 space-y-3">
+                <OrganizationSwitcher
+                  appearance={{
+                    elements: {
+                      rootBox: "w-full",
+                      organizationSwitcherTrigger:
+                        "w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors",
+                      organizationPreviewTextContainer: "text-sm",
+                      avatarBox: "h-5 w-5",
+                    },
+                  }}
+                />
+              </div>
+            )}
           </aside>
         </div>
       )}

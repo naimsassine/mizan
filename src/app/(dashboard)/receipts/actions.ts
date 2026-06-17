@@ -1,15 +1,17 @@
 "use server"
 
-import { auth } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
 import { after } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { getOwner } from "@/lib/owner"
+import { DEMO_DISABLED } from "@/lib/demo"
 import { scanEmails } from "@/lib/scan-emails"
 import { parseFileAsReceipt } from "@/lib/parse-file-receipt"
 import { revalidateOwnerSpend } from "@/lib/cache"
 
 export async function disconnectEmailAccount(id: string) {
-  const { userId, orgId } = await auth()
+  const { userId, orgId, isDemo } = await getOwner()
+  if (isDemo) return DEMO_DISABLED
   if (!userId) return { error: "Unauthorized" }
 
   const ownerId = orgId ?? userId
@@ -20,7 +22,8 @@ export async function disconnectEmailAccount(id: string) {
 }
 
 export async function triggerEmailScan(emailConnectionId: string) {
-  const { userId, orgId } = await auth()
+  const { userId, orgId, isDemo } = await getOwner()
+  if (isDemo) return DEMO_DISABLED
   if (!userId) return { error: "Unauthorized" }
 
   const ownerId = orgId ?? userId
@@ -47,7 +50,8 @@ export async function createReceipt(data: {
   invoiceId: string | null
   usageType?: "api" | "subscription"
 }) {
-  const { userId, orgId, orgRole } = await auth()
+  const { userId, orgId, orgRole, isDemo } = await getOwner()
+  if (isDemo) return DEMO_DISABLED
   if (!userId) return { error: "Unauthorized" }
   if (orgId && orgRole === "org:viewer") return { error: "Viewers cannot add receipts" }
 
@@ -88,7 +92,8 @@ export async function updateReceipt(
     usageType?: "api" | "subscription"
   },
 ) {
-  const { userId, orgId } = await auth()
+  const { userId, orgId, isDemo } = await getOwner()
+  if (isDemo) return DEMO_DISABLED
   if (!userId) return { error: "Unauthorized" }
 
   if (!data.amountUsd || data.amountUsd <= 0) return { error: "Amount must be greater than 0" }
@@ -113,7 +118,8 @@ export async function updateReceipt(
 }
 
 export async function reclassifyReceipt(id: string, usageType: "api" | "subscription") {
-  const { userId, orgId } = await auth()
+  const { userId, orgId, isDemo } = await getOwner()
+  if (isDemo) return DEMO_DISABLED
   if (!userId) return { error: "Unauthorized" }
 
   const ownerId = orgId ?? userId
@@ -129,7 +135,8 @@ export async function reclassifyReceipt(id: string, usageType: "api" | "subscrip
 }
 
 export async function deleteReceipt(id: string) {
-  const { userId, orgId, orgRole } = await auth()
+  const { userId, orgId, orgRole, isDemo } = await getOwner()
+  if (isDemo) return DEMO_DISABLED
   if (!userId) return { error: "Unauthorized" }
   if (orgId && orgRole === "org:viewer") return { error: "Viewers cannot delete receipts" }
 
@@ -143,7 +150,8 @@ export async function deleteReceipt(id: string) {
 }
 
 export async function uploadReceipt(formData: FormData) {
-  const { userId, orgId, orgRole } = await auth()
+  const { userId, orgId, orgRole, isDemo } = await getOwner()
+  if (isDemo) return DEMO_DISABLED
   if (!userId) return { error: "Unauthorized" }
   if (orgId && orgRole === "org:viewer") return { error: "Viewers cannot upload receipts" }
 

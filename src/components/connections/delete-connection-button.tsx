@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { blockedInDemo, IS_DEMO } from "@/lib/demo-client"
 
 const providerLabel: Record<string, string> = {
   openai: "OpenAI",
@@ -27,6 +28,7 @@ export function DeleteConnectionButton({ id, provider }: { id: string; provider:
   const label = providerLabel[provider] ?? provider
 
   function handleConfirm() {
+    if (blockedInDemo()) return
     setOpen(false)
 
     let cancelled = false
@@ -56,7 +58,8 @@ export function DeleteConnectionButton({ id, provider }: { id: string; provider:
   return (
     <>
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => { if (blockedInDemo()) return; setOpen(true) }}
+        disabled={IS_DEMO}
         title="Remove connection"
         aria-label={`Remove ${label} connection`}
         className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors duration-200 hover:bg-red-50 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"

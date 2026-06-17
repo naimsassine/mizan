@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { decrypt, encrypt } from "@/lib/encrypt"
+import { IS_DEMO } from "@/lib/demo"
 
 const MONITORING_API = "https://monitoring.googleapis.com/v3"
 
@@ -38,6 +39,8 @@ async function getFreshToken(connectionId: string): Promise<string> {
 }
 
 export async function GET() {
+  if (IS_DEMO) return NextResponse.json({ error: "Disabled in demo" }, { status: 403 })
+
   const { userId, orgId } = await auth()
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 

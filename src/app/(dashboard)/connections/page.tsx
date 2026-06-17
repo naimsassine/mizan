@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server"
+import { getOwner } from "@/lib/owner"
 import { unstable_cache } from "next/cache"
 import { subDays, startOfDay, format } from "date-fns"
 import { prisma } from "@/lib/prisma"
@@ -99,7 +99,7 @@ export default async function ConnectionsPage({
 }: {
   searchParams: Promise<{ error?: string; gcp_conn?: string }>
 }) {
-  const { userId, orgId } = await auth()
+  const { userId, orgId } = await getOwner()
   const ownerId = orgId ?? userId!
   const { error, gcp_conn } = await searchParams
 
