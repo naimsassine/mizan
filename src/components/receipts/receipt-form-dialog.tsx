@@ -54,11 +54,23 @@ interface ReceiptData {
 
 interface Props {
   receipt?: ReceiptData
+  // Controlled-open support so a parent dropdown can drive the dialog.
+  open?: boolean
+  onOpenChange?: (v: boolean) => void
+  hideTrigger?: boolean
+  // When set, the API/Subscription toggle is hidden and the type is forced.
+  lockedType?: "api" | "subscription"
+  title?: string
 }
 
-export function ReceiptFormDialog({ receipt }: Props) {
+export function ReceiptFormDialog({ receipt, open: openProp, onOpenChange, hideTrigger, lockedType, title }: Props) {
   const isEdit = !!receipt
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = openProp ?? internalOpen
+  const setOpen = (v: boolean) => {
+    if (onOpenChange) onOpenChange(v)
+    else setInternalOpen(v)
+  }
   const [provider, setProvider] = useState(receipt?.provider ?? "")
   const [amount, setAmount] = useState(
     receipt ? Number(receipt.amountUsd).toFixed(2) : "",
@@ -71,7 +83,7 @@ export function ReceiptFormDialog({ receipt }: Props) {
   )
   const [invoiceId, setInvoiceId] = useState(receipt?.invoiceId ?? "")
   const [usageType, setUsageType] = useState<"api" | "subscription">(
-    receipt?.usageType === "subscription" ? "subscription" : "api",
+    lockedType ?? (receipt?.usageType === "subscription" ? "subscription" : "api"),
   )
   const [error, setError] = useState("")
   const [isPending, startTransition] = useTransition()
@@ -149,20 +161,22 @@ export function ReceiptFormDialog({ receipt }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset() }}>
-      {isEdit ? (
-        <DialogTrigger render={<button disabled={IS_DEMO} className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-300 transition-colors hover:bg-zinc-100 hover:text-zinc-600" />}>
-          <Pencil className="h-3.5 w-3.5" />
-        </DialogTrigger>
-      ) : (
-        <DialogTrigger render={<Button size="sm" variant="outline" disabled={IS_DEMO} className="h-8 gap-1.5 text-xs" />}>
-          <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
-          Add receipt
-        </DialogTrigger>
+      {!hideTrigger && (
+        isEdit ? (
+          <DialogTrigger render={<button disabled={IS_DEMO} className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-300 transition-colors hover:bg-zinc-100 hover:text-zinc-600" />}>
+            <Pencil className="h-3.5 w-3.5" />
+          </DialogTrigger>
+        ) : (
+          <DialogTrigger render={<Button size="sm" variant="outline" disabled={IS_DEMO} className="h-8 gap-1.5 text-xs" />}>
+            <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
+            Add receipt
+          </DialogTrigger>
+        )
       )}
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle className="text-base font-semibold text-zinc-900">
-            {isEdit ? "Edit receipt" : "Add receipt"}
+            {title ?? (isEdit ? "Edit receipt" : "Add receipt")}
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="mt-2 space-y-4">
@@ -182,25 +196,27 @@ export function ReceiptFormDialog({ receipt }: Props) {
             </Select>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs text-zinc-600">Type</Label>
-            <div className="flex rounded-lg border border-zinc-200 p-0.5 gap-0.5">
-              {(["api", "subscription"] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setUsageType(t)}
-                  className={`flex-1 rounded-md py-1.5 text-xs font-medium transition-colors ${
-                    usageType === t
-                      ? "bg-zinc-900 text-white"
-                      : "text-zinc-500 hover:text-zinc-700"
-                  }`}
-                >
-                  {t === "api" ? "API usage" : "Subscription"}
-                </button>
-              ))}
+          {!lockedType && (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-zinc-600">Type</Label>
+              <div className="flex rounded-lg border border-zinc-200 p-0.5 gap-0.5">
+                {(["api", "subscription"] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setUsageType(t)}
+                    className={`flex-1 rounded-md py-1.5 text-xs font-medium transition-colors ${
+                      usageType === t
+                        ? "bg-zinc-900 text-white"
+                        : "text-zinc-500 hover:text-zinc-700"
+                    }`}
+                  >
+                    {t === "api" ? "API usage" : "Subscription"}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="space-y-1.5">
             <Label className="text-xs text-zinc-600">Amount (USD) *</Label>

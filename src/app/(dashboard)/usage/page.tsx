@@ -1,9 +1,10 @@
 import { getOwner } from "@/lib/owner"
 import { Suspense } from "react"
 import { unstable_cache } from "next/cache"
-import { subDays, format, startOfDay, eachDayOfInterval } from "date-fns"
+import { subDays, format } from "date-fns"
 import { prisma } from "@/lib/prisma"
-import { ownerUsageTag, ownerReceiptsTag } from "@/lib/cache"
+import { ownerUsageTag, ownerReceiptsTag, ownerSubscriptionsTag } from "@/lib/cache"
+import { subscriptionDailyCost, subscriptionMtd, type SubscriptionLike } from "@/lib/subscriptions"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -55,14 +56,18 @@ function getUsageData(ownerId: string, days: Range, providerFilter: ProviderFilt
   return unstable_cache(
     () => loadUsageData(ownerId, days, providerFilter),
     ["usage-data", ownerId, String(days), providerFilter],
-    { tags: [ownerUsageTag(ownerId), ownerReceiptsTag(ownerId)], revalidate: 300 },
+    {
+      tags: [ownerUsageTag(ownerId), ownerReceiptsTag(ownerId), ownerSubscriptionsTag(ownerId)],
+      revalidate: 300,
+    },
   )()
 }
 
 async function loadUsageData(ownerId: string, days: Range, providerFilter: ProviderFilter) {
   const fromDate = subDays(new Date(), days)
 
-  const [records, subscriptionReceipts] = await Promise.all([
+  const now = new Date()
+  const [records, subscriptionRows] = await Promise.all([
     prisma.usageRecord.groupBy({
       by: ["date", "model", "provider"],
       where: {
@@ -73,35 +78,38 @@ async function loadUsageData(ownerId: string, days: Range, providerFilter: Provi
       _sum: { costUsd: true, inputTokens: true, outputTokens: true },
       orderBy: [{ date: "desc" }],
     }),
-    prisma.receipt.findMany({
+    prisma.subscription.findMany({
       where: {
         ownerId,
-        usageType: "subscription",
+        startDate: { lte: now },
+        OR: [{ endDate: null }, { endDate: { gte: fromDate } }],
         ...(providerFilter !== "all" ? { provider: providerFilter } : {}),
       },
       select: {
         id: true,
+        name: true,
         provider: true,
         amountUsd: true,
-        billingPeriodStart: true,
-        billingPeriodEnd: true,
-        invoiceId: true,
-        parsedAt: true,
-        createdAt: true,
+        period: true,
+        startDate: true,
+        endDate: true,
+        status: true,
       },
       orderBy: { createdAt: "desc" },
-      take: 200,
     }),
   ])
 
-  // Filter subscriptions to the selected date window using effective date
-  function effectiveDate(r: { billingPeriodStart: Date | null; billingPeriodEnd: Date | null; parsedAt: Date | null; createdAt: Date }) {
-    return r.billingPeriodStart ?? r.billingPeriodEnd ?? r.parsedAt ?? r.createdAt
-  }
-  const filteredSubs = subscriptionReceipts.filter((r) => effectiveDate(r) >= fromDate)
+  // Subscriptions are projected forward (source of truth), not summed from receipts.
+  const subsForCalc: SubscriptionLike[] = subscriptionRows.map((s) => ({
+    amountUsd: Number(s.amountUsd),
+    period: s.period,
+    startDate: s.startDate,
+    endDate: s.endDate,
+    status: s.status,
+  }))
 
   const apiCost = records.reduce((s, r) => s + Number(r._sum?.costUsd ?? 0), 0)
-  const subCost = filteredSubs.reduce((s, r) => s + Number(r.amountUsd), 0)
+  const subCost = subscriptionMtd(subsForCalc, fromDate, now)
   const totalCost = apiCost + subCost
   const totalInputTokens = records.reduce((s, r) => s + Number(r._sum?.inputTokens ?? 0), 0)
   const totalOutputTokens = records.reduce((s, r) => s + Number(r._sum?.outputTokens ?? 0), 0)
@@ -115,23 +123,9 @@ async function loadUsageData(ownerId: string, days: Range, providerFilter: Provi
     const d = getDay(key)
     dailyMap.set(key, { ...d, api: d.api + Number(r._sum?.costUsd ?? 0) })
   }
-  const chartTo = new Date()
-  for (const r of filteredSubs) {
-    // Spread subscription cost evenly across its billing period rather than a one-day spike.
-    if (r.billingPeriodStart && r.billingPeriodEnd) {
-      const days = eachDayOfInterval({ start: r.billingPeriodStart, end: r.billingPeriodEnd })
-      const perDayAmount = Number(r.amountUsd) / days.length
-      for (const day of days) {
-        if (day < fromDate || day > chartTo) continue
-        const key = format(day, "yyyy-MM-dd")
-        const d = getDay(key)
-        dailyMap.set(key, { ...d, subscription: d.subscription + perDayAmount })
-      }
-      continue
-    }
-    const key = format(startOfDay(effectiveDate(r)), "yyyy-MM-dd")
+  for (const [key, cost] of subscriptionDailyCost(subsForCalc, fromDate, now)) {
     const d = getDay(key)
-    dailyMap.set(key, { ...d, subscription: d.subscription + Number(r.amountUsd) })
+    dailyMap.set(key, { ...d, subscription: d.subscription + cost })
   }
   const chartData = Array.from(dailyMap.entries())
     .map(([date, { api, subscription }]) => ({ date, api, subscription }))
@@ -162,15 +156,13 @@ async function loadUsageData(ownerId: string, days: Range, providerFilter: Provi
     costUsd: Number(r._sum.costUsd ?? 0),
   }))
 
-  const subs = filteredSubs.map((r) => ({
-    id: r.id,
-    provider: r.provider,
-    amountUsd: Number(r.amountUsd),
-    periodLabel:
-      r.billingPeriodStart && r.billingPeriodEnd
-        ? `${format(r.billingPeriodStart, "MMM d")} – ${format(r.billingPeriodEnd, "MMM d, yyyy")}`
-        : format(effectiveDate(r), "MMM d, yyyy"),
-    invoiceId: r.invoiceId,
+  const subs = subscriptionRows.map((s) => ({
+    id: s.id,
+    name: s.name,
+    provider: s.provider,
+    amountUsd: Number(s.amountUsd),
+    period: s.period,
+    status: s.status,
   }))
 
   return {
@@ -433,16 +425,16 @@ async function UsageData({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100">
-                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-400">Period</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-400">Subscription</th>
                   <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-400">Provider</th>
-                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-400">Invoice</th>
-                  <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">Amount</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-400">Status</th>
+                  <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-400">Price</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-50">
                 {subs.map((r) => (
                   <tr key={r.id} className="transition-colors duration-100 hover:bg-zinc-50/70">
-                    <td className="px-5 py-3 text-xs text-zinc-500">{r.periodLabel}</td>
+                    <td className="px-5 py-3 text-xs font-medium text-zinc-700">{r.name}</td>
                     <td className="px-5 py-3">
                       {r.provider ? (
                         <Badge variant="outline" className={`h-4 px-1.5 py-0 text-[10px] capitalize ${providerColors[r.provider] ?? "bg-zinc-50 text-zinc-600 border-zinc-200"}`}>
@@ -452,9 +444,20 @@ async function UsageData({
                         <span className="text-xs text-zinc-400">—</span>
                       )}
                     </td>
-                    <td className="px-5 py-3 text-xs text-zinc-400">{r.invoiceId ?? "—"}</td>
+                    <td className="px-5 py-3">
+                      <Badge
+                        variant="outline"
+                        className={`h-4 px-1.5 py-0 text-[10px] capitalize ${
+                          r.status === "active"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                            : "bg-zinc-100 text-zinc-500 border-zinc-200"
+                        }`}
+                      >
+                        {r.status}
+                      </Badge>
+                    </td>
                     <td className="px-5 py-3 text-right font-mono text-xs font-semibold tabular-nums text-zinc-900">
-                      ${r.amountUsd.toFixed(2)}
+                      ${r.amountUsd.toFixed(2)}<span className="text-zinc-400">/{r.period === "yearly" ? "yr" : "mo"}</span>
                     </td>
                   </tr>
                 ))}

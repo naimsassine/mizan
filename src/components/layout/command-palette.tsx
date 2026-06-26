@@ -8,7 +8,6 @@ import {
   BarChart2,
   ArrowLeftRight,
   Plug,
-  Receipt,
   Bell,
   Settings,
   Sun,
@@ -30,8 +29,7 @@ const NAV: Command[] = [
   { id: "overview", label: "Go to Overview", icon: LayoutDashboard, keywords: "dashboard home", run: ({ router }) => router.push("/overview") },
   { id: "usage", label: "Go to Usage", icon: BarChart2, keywords: "tokens table export", run: ({ router }) => router.push("/usage") },
   { id: "compare", label: "Go to Compare", icon: ArrowLeftRight, keywords: "cost per million pricing", run: ({ router }) => router.push("/compare") },
-  { id: "connections", label: "Go to Connections", icon: Plug, keywords: "providers api keys", run: ({ router }) => router.push("/connections") },
-  { id: "receipts", label: "Go to Receipts", icon: Receipt, keywords: "invoices email upload", run: ({ router }) => router.push("/receipts") },
+  { id: "connections", label: "Go to Connections", icon: Plug, keywords: "providers api keys subscriptions receipts invoices email upload spend", run: ({ router }) => router.push("/connections") },
   { id: "notifications", label: "Go to Notifications", icon: Bell, keywords: "alerts budgets rules", run: ({ router }) => router.push("/notifications") },
   { id: "settings", label: "Go to Settings", icon: Settings, keywords: "preferences backfill", run: ({ router }) => router.push("/settings") },
 ]

@@ -102,9 +102,20 @@ function validateKey(providerValue: string, key: string): string | null {
   return null
 }
 
-export function AddConnectionDialog() {
+interface AddConnectionDialogProps {
+  open?: boolean
+  onOpenChange?: (v: boolean) => void
+  hideTrigger?: boolean
+}
+
+export function AddConnectionDialog({ open: openProp, onOpenChange, hideTrigger }: AddConnectionDialogProps = {}) {
   const router = useRouter()
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = openProp ?? internalOpen
+  const setOpen = (v: boolean) => {
+    if (onOpenChange) onOpenChange(v)
+    else setInternalOpen(v)
+  }
   const [provider, setProvider] = useState<string>("")
   const [apiKey, setApiKey] = useState("")
   // Bedrock-specific
@@ -189,14 +200,16 @@ export function AddConnectionDialog() {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset() }}>
-      <DialogTrigger
-        render={
-          <Button size="sm" disabled={IS_DEMO} className="bg-zinc-900 text-white hover:bg-zinc-700 gap-1.5" />
-        }
-      >
-        <Plus className="h-3.5 w-3.5" />
-        Add connection
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger
+          render={
+            <Button size="sm" disabled={IS_DEMO} className="bg-zinc-900 text-white hover:bg-zinc-700 gap-1.5" />
+          }
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add connection
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-base font-semibold text-zinc-900">

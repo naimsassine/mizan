@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
-import { LayoutDashboard, BarChart2, Plug, Bell, Settings, Scale, Receipt, ArrowLeftRight, Sun, Moon } from "lucide-react"
+import { LayoutDashboard, BarChart2, Plug, Bell, Settings, Scale, ArrowLeftRight, Sun, Moon } from "lucide-react"
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
 
@@ -12,7 +12,6 @@ const navItems = [
   { href: "/usage", icon: BarChart2, label: "Usage" },
   { href: "/compare", icon: ArrowLeftRight, label: "Compare" },
   { href: "/connections", icon: Plug, label: "Connections" },
-  { href: "/receipts", icon: Receipt, label: "Receipts" },
   { href: "/notifications", icon: Bell, label: "Notifications" },
 ]
 

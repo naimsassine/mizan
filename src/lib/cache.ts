@@ -7,6 +7,7 @@ import { revalidateTag } from "next/cache"
 
 export const ownerUsageTag = (ownerId: string) => `usage:${ownerId}`
 export const ownerReceiptsTag = (ownerId: string) => `receipts:${ownerId}`
+export const ownerSubscriptionsTag = (ownerId: string) => `subscriptions:${ownerId}`
 export const ownerAlertsTag = (ownerId: string) => `alerts:${ownerId}`
 
 /**
@@ -21,6 +22,7 @@ export function revalidateOwnerSpend(ownerId: string) {
   // where the user expects to see their change right away, not stale-while-revalidate).
   revalidateTag(ownerUsageTag(ownerId), { expire: 0 })
   revalidateTag(ownerReceiptsTag(ownerId), { expire: 0 })
+  revalidateTag(ownerSubscriptionsTag(ownerId), { expire: 0 })
   // Alert badge / notification aggregates derive from spend, so refresh them too.
   revalidateTag(ownerAlertsTag(ownerId), { expire: 0 })
 }

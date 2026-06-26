@@ -59,6 +59,16 @@ enum EmailProvider {
   outlook
 }
 
+enum SubscriptionStatus {
+  active
+  cancelled
+}
+
+enum SubscriptionPeriod {
+  monthly
+  yearly
+}
+
 model Profile {
   clerkUserId String   @id @map("clerk_user_id")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -137,6 +147,7 @@ model Receipt {
   ownerId             String          @map("owner_id")
   ownerType           OwnerType       @map("owner_type")
   emailConnectionId   String?         @map("email_connection_id")
+  subscriptionId      String?         @map("subscription_id")
   externalId          String?         @map("external_id")
   provider            String?
   amountUsd           Decimal         @map("amount_usd") @db.Decimal(10, 2)
@@ -150,10 +161,33 @@ model Receipt {
   createdAt           DateTime        @default(now()) @map("created_at")
 
   emailConnection EmailConnection? @relation(fields: [emailConnectionId], references: [id], onDelete: SetNull)
+  subscription    Subscription?    @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
 
   @@unique([emailConnectionId, externalId])
   @@index([ownerId, ownerType])
+  @@index([subscriptionId])
   @@map("receipts")
+}
+
+model Subscription {
+  id                String             @id @default(uuid())
+  ownerId           String             @map("owner_id")
+  ownerType         OwnerType          @map("owner_type")
+  name              String
+  provider          String?
+  amountUsd         Decimal            @map("amount_usd") @db.Decimal(10, 2)
+  period            SubscriptionPeriod @default(monthly)
+  startDate         DateTime           @map("start_date") @db.Date
+  endDate           DateTime?          @map("end_date") @db.Date
+  status            SubscriptionStatus @default(active)
+  source            String
+  emailConnectionId String?            @map("email_connection_id")
+  createdAt         DateTime           @default(now()) @map("created_at")
+
+  receipts Receipt[]
+
+  @@index([ownerId, ownerType])
+  @@map("subscriptions")
 }
 
 model BudgetRule {

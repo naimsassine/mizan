@@ -10,7 +10,6 @@ import {
   Bell,
   Settings,
   Scale,
-  Receipt,
   Menu,
   X,
   ArrowLeftRight,
@@ -25,7 +24,6 @@ const navItems = [
   { href: "/usage", icon: BarChart2, label: "Usage" },
   { href: "/compare", icon: ArrowLeftRight, label: "Compare" },
   { href: "/connections", icon: Plug, label: "Connections" },
-  { href: "/receipts", icon: Receipt, label: "Receipts" },
   { href: "/notifications", icon: Bell, label: "Notifications" },
   { href: "/settings", icon: Settings, label: "Settings" },
 ]

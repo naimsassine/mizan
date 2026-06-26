@@ -1,6 +1,7 @@
 import { format, subMonths } from "date-fns"
 import { prisma } from "@/lib/prisma"
 import { parseEmailAsReceipt } from "@/lib/parse-receipt"
+import { ingestReceipt } from "@/lib/ingest-receipt"
 import * as gmail from "@/lib/gmail"
 import * as outlook from "@/lib/outlook"
 
@@ -100,26 +101,23 @@ export async function scanEmails(
       console.log(`[scan-emails] Parsed:`, JSON.stringify(parsed))
       if (!parsed.isAiBillingEmail || parsed.amountUsd === null) continue
 
-      await prisma.receipt.create({
-        data: {
-          ownerId: connection.ownerId,
-          ownerType: connection.ownerType,
-          emailConnectionId,
-          externalId: messageId,
-          provider: parsed.provider,
-          amountUsd: parsed.amountUsd,
-          billingPeriodStart: parsed.billingPeriodStart
-            ? new Date(parsed.billingPeriodStart)
-            : null,
-          billingPeriodEnd: parsed.billingPeriodEnd ? new Date(parsed.billingPeriodEnd) : null,
-          invoiceId: parsed.invoiceId,
-          usageType: parsed.usageType ?? "api",
-          source: "email_forward",
-          parsedAt: new Date(),
-          rawContent: `${msg.from}\n${msg.subject}\n\n${msg.body}`.slice(0, 10_000),
-        },
+      const { created } = await ingestReceipt({
+        ownerId: connection.ownerId,
+        ownerType: connection.ownerType,
+        emailConnectionId,
+        externalId: messageId,
+        provider: parsed.provider,
+        amountUsd: parsed.amountUsd,
+        billingPeriodStart: parsed.billingPeriodStart
+          ? new Date(parsed.billingPeriodStart)
+          : null,
+        billingPeriodEnd: parsed.billingPeriodEnd ? new Date(parsed.billingPeriodEnd) : null,
+        invoiceId: parsed.invoiceId,
+        usageType: parsed.usageType ?? "api",
+        source: "email_forward",
+        rawContent: `${msg.from}\n${msg.subject}\n\n${msg.body}`.slice(0, 10_000),
       })
-      saved++
+      if (created) saved++
     } catch (err) {
       console.error(`[scan-emails] Failed to process message ${messageId}:`, err)
     }

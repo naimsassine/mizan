@@ -13,11 +13,11 @@ import {
   getDate,
   setDate,
   endOfDay,
-  eachDayOfInterval,
   formatDistanceToNow,
 } from "date-fns"
 import { prisma } from "@/lib/prisma"
-import { ownerUsageTag, ownerReceiptsTag } from "@/lib/cache"
+import { ownerUsageTag, ownerReceiptsTag, ownerSubscriptionsTag } from "@/lib/cache"
+import { subscriptionDailyCost, subscriptionMtd, type SubscriptionLike } from "@/lib/subscriptions"
 import OverviewLoading from "./loading"
 import { StatCard } from "@/components/dashboard/stat-card"
 import { SpendChart } from "@/components/dashboard/spend-chart"
@@ -48,7 +48,10 @@ function getDashboardData(ownerId: string, chartDays: Range) {
   return unstable_cache(
     () => loadDashboardData(ownerId, chartDays),
     ["overview-dashboard", ownerId, String(chartDays)],
-    { tags: [ownerUsageTag(ownerId), ownerReceiptsTag(ownerId)], revalidate: 300 },
+    {
+      tags: [ownerUsageTag(ownerId), ownerReceiptsTag(ownerId), ownerSubscriptionsTag(ownerId)],
+      revalidate: 300,
+    },
   )()
 }
 
@@ -67,7 +70,15 @@ async function loadDashboardData(ownerId: string, chartDays: Range) {
   // Fetch receipts from the earliest date we care about (chart window or last month, whichever is earlier)
   const receiptFrom = chartFrom < lastMonthStart ? chartFrom : lastMonthStart
 
-  const [monthlyRecords, chartRecords, lastMonthRecords, connections, allReceipts, lastSyncedConn] =
+  const [
+    monthlyRecords,
+    chartRecords,
+    lastMonthRecords,
+    connections,
+    allReceipts,
+    subscriptionRows,
+    lastSyncedConn,
+  ] =
     await Promise.all([
       prisma.usageRecord.findMany({
         where: { ownerId, date: { gte: monthStart, lte: monthEnd } },
@@ -95,6 +106,16 @@ async function loadDashboardData(ownerId: string, chartDays: Range) {
         select: { amountUsd: true, billingPeriodStart: true, billingPeriodEnd: true, parsedAt: true, createdAt: true, usageType: true, provider: true },
         orderBy: { createdAt: "desc" },
       }),
+      // Subscriptions are projected forward (see lib/subscriptions). Pull any that could be active
+      // anywhere in the window we care about (chart range ∪ last month).
+      prisma.subscription.findMany({
+        where: {
+          ownerId,
+          startDate: { lte: monthEnd },
+          OR: [{ endDate: null }, { endDate: { gte: receiptFrom } }],
+        },
+        select: { amountUsd: true, period: true, startDate: true, endDate: true, status: true },
+      }),
       prisma.providerConnection.findFirst({
         where: { ownerId, lastSyncedAt: { not: null } },
         orderBy: { lastSyncedAt: "desc" },
@@ -111,6 +132,14 @@ async function loadDashboardData(ownerId: string, chartDays: Range) {
     const d = receiptEffectiveDate(r)
     return d >= lastMonthStart && d <= lastMonthEnd
   })
+
+  const subs: SubscriptionLike[] = subscriptionRows.map((s) => ({
+    amountUsd: Number(s.amountUsd),
+    period: s.period,
+    startDate: s.startDate,
+    endDate: s.endDate,
+    status: s.status,
+  }))
 
   const apiMtd = monthlyRecords.reduce((s: number, r) => s + Number(r.costUsd), 0)
   const apiReceiptMtd = mtdReceipts
@@ -129,14 +158,17 @@ async function loadDashboardData(ownerId: string, chartDays: Range) {
     mtdReceipts.filter((r) => r.usageType !== "subscription" && r.provider).map((r) => r.provider!)
   )
   const doubleCountProviders = [...receiptApiProviders].filter((p) => apiProviders.has(p))
-  const subscriptionMtd = mtdReceipts
-    .filter((r) => r.usageType === "subscription")
-    .reduce((s: number, r) => s + Number(r.amountUsd), 0)
-  const mtdSpend = apiMtd + apiReceiptMtd + subscriptionMtd
+  // Subscription spend is projected from the Subscription table (source of truth), prorated to-date
+  // so it stays apples-to-apples with API spend. Subscription receipts are evidence only, not summed.
+  const subscriptionSpendMtd = subscriptionMtd(subs, monthStart, now)
+  const mtdSpend = apiMtd + apiReceiptMtd + subscriptionSpendMtd
 
   const lastMonthApiSpend = lastMonthRecords.reduce((s: number, r) => s + Number(r.costUsd), 0)
-  const lastMonthReceiptSpend = lastMonthReceipts.reduce((s: number, r) => s + Number(r.amountUsd), 0)
-  const lastMonthSpend = lastMonthApiSpend + lastMonthReceiptSpend
+  const lastMonthApiReceiptSpend = lastMonthReceipts
+    .filter((r) => r.usageType !== "subscription")
+    .reduce((s: number, r) => s + Number(r.amountUsd), 0)
+  const lastMonthSubSpend = subscriptionMtd(subs, lastMonthStart, lastMonthEnd)
+  const lastMonthSpend = lastMonthApiSpend + lastMonthApiReceiptSpend + lastMonthSubSpend
 
   const spendDelta =
     lastMonthSpend > 0 ? ((mtdSpend - lastMonthSpend) / lastMonthSpend) * 100 : null
@@ -161,9 +193,14 @@ async function loadDashboardData(ownerId: string, chartDays: Range) {
     perDay.set(key, (perDay.get(key) ?? 0) + Number(r.costUsd))
   }
   for (const r of mtdReceipts) {
+    if (r.usageType === "subscription") continue // projected from subs below, not summed here
     const key = format(receiptEffectiveDate(r), "yyyy-MM-dd")
     if (key === todayKey) continue
     perDay.set(key, (perDay.get(key) ?? 0) + Number(r.amountUsd))
+  }
+  for (const [key, cost] of subscriptionDailyCost(subs, monthStart, now)) {
+    if (key === todayKey) continue
+    perDay.set(key, (perDay.get(key) ?? 0) + cost)
   }
   const completedSpend = Array.from(perDay.values()).reduce((s, v) => s + v, 0)
   const dailyAvg = completedSpend > 0 ? completedSpend / completedDays : (daysElapsed > 0 ? mtdSpend / daysElapsed : 0)
@@ -190,26 +227,15 @@ async function loadDashboardData(ownerId: string, chartDays: Range) {
     dailyMap.set(key, { ...d, api: d.api + Number(r.costUsd) })
   }
   for (const r of chartReceipts) {
-    // Amortize subscriptions across their billing period (spread evenly per day)
-    // instead of dumping the full amount on a single day, which produced a misleading spike.
-    if (r.usageType === "subscription" && r.billingPeriodStart && r.billingPeriodEnd) {
-      const days = eachDayOfInterval({ start: r.billingPeriodStart, end: r.billingPeriodEnd })
-      const perDayAmount = Number(r.amountUsd) / days.length
-      for (const day of days) {
-        if (day < chartFrom || day > now) continue
-        const key = format(day, "yyyy-MM-dd")
-        const d = getDay(key)
-        dailyMap.set(key, { ...d, subscription: d.subscription + perDayAmount })
-      }
-      continue
-    }
+    if (r.usageType === "subscription") continue // subscriptions are projected from the Subscription table
     const key = format(receiptEffectiveDate(r), "yyyy-MM-dd")
     const d = getDay(key)
-    if (r.usageType === "subscription") {
-      dailyMap.set(key, { ...d, subscription: d.subscription + Number(r.amountUsd) })
-    } else {
-      dailyMap.set(key, { ...d, api: d.api + Number(r.amountUsd) })
-    }
+    dailyMap.set(key, { ...d, api: d.api + Number(r.amountUsd) })
+  }
+  // Project active subscriptions across the chart window (per-day amortized share).
+  for (const [key, cost] of subscriptionDailyCost(subs, chartFrom, now)) {
+    const d = getDay(key)
+    dailyMap.set(key, { ...d, subscription: d.subscription + cost })
   }
   const chartData = Array.from(dailyMap.entries())
     .map(([date, { api, subscription }]) => ({ date, api, subscription }))
@@ -233,7 +259,7 @@ async function loadDashboardData(ownerId: string, chartDays: Range) {
   return {
     mtdSpend,
     apiSpend: apiMtd + apiReceiptMtd,
-    subscriptionSpend: subscriptionMtd,
+    subscriptionSpend: subscriptionSpendMtd,
     lastMonthSpend,
     spendDelta,
     totalTokens,

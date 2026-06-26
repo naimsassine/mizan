@@ -16,6 +16,7 @@ import { syncLiteLLMIncremental } from "@/lib/sync/litellm"
 import { scanEmails } from "@/lib/scan-emails"
 import { sendAlertEmail } from "@/lib/send-alert-email"
 import { sendWeeklyDigest } from "@/lib/send-weekly-digest"
+import { subscriptionMtd, type SubscriptionLike } from "@/lib/subscriptions"
 import { startOfDay, startOfWeek, startOfMonth } from "date-fns"
 
 // Called daily by Vercel cron — syncs all active connections then checks budget alerts
@@ -104,8 +105,9 @@ async function checkBudgetAlerts(ownerId: string) {
     })
     if (existingAlert) continue
 
-    // Calculate current period spend — include both API usage records and receipts
-    const [apiSpend, receiptSpend] = await Promise.all([
+    // Calculate current period spend — mirror the dashboards: API usage records + api-type receipts
+    // + projected subscription cost (subscriptions are the source of truth, not their receipts).
+    const [apiSpend, receiptSpend, subscriptionRows] = await Promise.all([
       prisma.usageRecord.aggregate({
         where: {
           ownerId,
@@ -117,6 +119,7 @@ async function checkBudgetAlerts(ownerId: string) {
       prisma.receipt.aggregate({
         where: {
           ownerId,
+          usageType: "api",
           OR: [
             { billingPeriodStart: { gte: periodStart } },
             { billingPeriodStart: null, parsedAt: { gte: periodStart } },
@@ -126,9 +129,28 @@ async function checkBudgetAlerts(ownerId: string) {
         },
         _sum: { amountUsd: true },
       }),
+      prisma.subscription.findMany({
+        where: {
+          ownerId,
+          startDate: { lte: now },
+          OR: [{ endDate: null }, { endDate: { gte: periodStart } }],
+          ...(rule.provider ? { provider: rule.provider } : {}),
+        },
+        select: { amountUsd: true, period: true, startDate: true, endDate: true, status: true },
+      }),
     ])
 
-    const spendUsd = Number(apiSpend._sum.costUsd ?? 0) + Number(receiptSpend._sum.amountUsd ?? 0)
+    const subs: SubscriptionLike[] = subscriptionRows.map((s) => ({
+      amountUsd: Number(s.amountUsd),
+      period: s.period,
+      startDate: s.startDate,
+      endDate: s.endDate,
+      status: s.status,
+    }))
+    const spendUsd =
+      Number(apiSpend._sum.costUsd ?? 0) +
+      Number(receiptSpend._sum.amountUsd ?? 0) +
+      subscriptionMtd(subs, periodStart, now)
     const threshold = (Number(rule.limitUsd) * rule.alertAtPct) / 100
 
     if (spendUsd >= threshold) {
