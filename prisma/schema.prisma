@@ -59,6 +59,21 @@ enum EmailProvider {
   outlook
 }
 
+enum EmailScanScope {
+  all
+  subscription
+}
+
+enum SubscriptionStatus {
+  active
+  cancelled
+}
+
+enum SubscriptionPeriod {
+  monthly
+  yearly
+}
+
 model Profile {
   clerkUserId String   @id @map("clerk_user_id")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -120,6 +135,7 @@ model EmailConnection {
   emailProvider  EmailProvider    @default(gmail) @map("email_provider")
   emailAddress   String           @map("email_address")
   encCredentials String           @map("enc_credentials")
+  scanScope      EmailScanScope   @default(all) @map("scan_scope")
   status         ConnectionStatus @default(active)
   lastScannedAt  DateTime?        @map("last_scanned_at")
   lastScanFound  Int?             @map("last_scan_found")
@@ -137,6 +153,7 @@ model Receipt {
   ownerId             String          @map("owner_id")
   ownerType           OwnerType       @map("owner_type")
   emailConnectionId   String?         @map("email_connection_id")
+  subscriptionId      String?         @map("subscription_id")
   externalId          String?         @map("external_id")
   provider            String?
   amountUsd           Decimal         @map("amount_usd") @db.Decimal(10, 2)
@@ -150,10 +167,33 @@ model Receipt {
   createdAt           DateTime        @default(now()) @map("created_at")
 
   emailConnection EmailConnection? @relation(fields: [emailConnectionId], references: [id], onDelete: SetNull)
+  subscription    Subscription?    @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
 
   @@unique([emailConnectionId, externalId])
   @@index([ownerId, ownerType])
+  @@index([subscriptionId])
   @@map("receipts")
+}
+
+model Subscription {
+  id                String             @id @default(uuid())
+  ownerId           String             @map("owner_id")
+  ownerType         OwnerType          @map("owner_type")
+  name              String
+  provider          String?
+  amountUsd         Decimal            @map("amount_usd") @db.Decimal(10, 2)
+  period            SubscriptionPeriod @default(monthly)
+  startDate         DateTime           @map("start_date") @db.Date
+  endDate           DateTime?          @map("end_date") @db.Date
+  status            SubscriptionStatus @default(active)
+  source            String
+  emailConnectionId String?            @map("email_connection_id")
+  createdAt         DateTime           @default(now()) @map("created_at")
+
+  receipts Receipt[]
+
+  @@index([ownerId, ownerType])
+  @@map("subscriptions")
 }
 
 model BudgetRule {

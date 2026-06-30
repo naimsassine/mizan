@@ -31,8 +31,8 @@ export function DoubleCountingBanner({ providers }: { providers: string[] }) {
         <span className="font-medium">{providers.join(", ")}</span>{" "}
         appear in both API usage records and receipts this month.{" "}
         Consider reclassifying receipts as &ldquo;Subscription&rdquo; on the{" "}
-        <Link href="/receipts" className="underline underline-offset-2">
-          Receipts page
+        <Link href="/connections" className="underline underline-offset-2">
+          Connections page
         </Link>
         .
       </span>

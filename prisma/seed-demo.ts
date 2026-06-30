@@ -104,6 +104,7 @@ async function main() {
   // 1) Wipe any previous demo data (FK cascades handle usage rows + alerts).
   await prisma.usageRecord.deleteMany({ where: { ownerId: DEMO_OWNER_ID } })
   await prisma.receipt.deleteMany({ where: { ownerId: DEMO_OWNER_ID } })
+  await prisma.subscription.deleteMany({ where: { ownerId: DEMO_OWNER_ID } })
   await prisma.budgetRule.deleteMany({ where: { ownerId: DEMO_OWNER_ID } }) // cascades alerts
   await prisma.emailConnection.deleteMany({ where: { ownerId: DEMO_OWNER_ID } })
   await prisma.providerConnection.deleteMany({ where: { ownerId: DEMO_OWNER_ID } })
@@ -186,36 +187,29 @@ async function main() {
     console.log(`  ${spec.provider}: ${records.length} usage records over ${spec.days} days`)
   }
 
-  // 4) Receipts — subscriptions + API invoices for the Receipts page.
-  //    Subscription billing periods are kept recent (current cycle within the last ~30 days) so
-  //    they also show up in the Usage tab's "Subscriptions" section under the default 30-day range,
-  //    with an older cycle each so the 90-day view shows recurrence.
-  const sub = (
-    provider: string,
-    amountUsd: number,
-    startDaysAgo: number,
-    endDaysAgo: number,
-  ) => ({
+  // 4) Subscriptions — recurring flat-rate plans. These are the source of truth for subscription
+  //    spend and are projected forward (amortized per day) on every dashboard until cancelled.
+  const subscriptions = [
+    { name: "ChatGPT Plus", provider: "openai", amountUsd: 20.0, startDaysAgo: 88 },
+    { name: "Cursor Pro", provider: "cursor", amountUsd: 20.0, startDaysAgo: 76 },
+    { name: "Claude Pro", provider: "anthropic", amountUsd: 20.0, startDaysAgo: 60 },
+    { name: "Perplexity Pro", provider: "perplexity", amountUsd: 20.0, startDaysAgo: 44 },
+    { name: "GitHub Copilot", provider: "github", amountUsd: 10.0, startDaysAgo: 120 },
+  ].map((s) => ({
     ownerId: DEMO_OWNER_ID,
     ownerType: OWNER_TYPE,
-    provider,
-    amountUsd,
-    usageType: "subscription" as const,
-    source: "receipt_email",
-    billingPeriodStart: dayUTC(startDaysAgo),
-    billingPeriodEnd: dayUTC(endDaysAgo),
-    parsedAt: dayUTC(startDaysAgo),
-  })
+    name: s.name,
+    provider: s.provider,
+    amountUsd: s.amountUsd,
+    period: "monthly" as const,
+    startDate: dayUTC(s.startDaysAgo),
+    status: "active" as const,
+    source: "manual",
+  }))
+  await prisma.subscription.createMany({ data: subscriptions })
+
+  // 5) API invoice receipts — non-granular spend that supplements the polled usage.
   const receipts = [
-    // Current cycle (visible in the default 30-day Usage view)
-    sub("openai", 20.0, 24, -6), // ChatGPT Plus
-    sub("cursor", 20.0, 20, -10), // Cursor Pro
-    sub("anthropic", 20.0, 16, -14), // Claude Pro
-    sub("perplexity", 20.0, 12, -18), // Perplexity Pro
-    // Previous cycle (shows recurrence in the 90-day view)
-    sub("openai", 20.0, 54, 24),
-    sub("cursor", 20.0, 50, 20),
-    // API invoices (Receipts tab / overview)
     {
       ownerId: DEMO_OWNER_ID,
       ownerType: OWNER_TYPE,
@@ -243,7 +237,7 @@ async function main() {
   ]
   await prisma.receipt.createMany({ data: receipts })
 
-  // 5) Budget rules + one triggered (unacknowledged) alert so the bell badge + history populate.
+  // 6) Budget rules + one triggered (unacknowledged) alert so the bell badge + history populate.
   const monthlyRule = await prisma.budgetRule.create({
     data: {
       ownerId: DEMO_OWNER_ID,
@@ -283,7 +277,7 @@ async function main() {
     },
   })
 
-  console.log(`Done. ${usageRows} usage records, 4 connections, ${receipts.length} receipts, 3 budget rules, 1 alert.`)
+  console.log(`Done. ${usageRows} usage records, 4 connections, ${subscriptions.length} subscriptions, ${receipts.length} receipts, 3 budget rules, 1 alert.`)
 }
 
 main()

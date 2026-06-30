@@ -7,6 +7,7 @@ import { getOwner } from "@/lib/owner"
 import { DEMO_DISABLED } from "@/lib/demo"
 import { scanEmails } from "@/lib/scan-emails"
 import { parseFileAsReceipt } from "@/lib/parse-file-receipt"
+import { ingestReceipt, linkReceiptToSubscription } from "@/lib/ingest-receipt"
 import { revalidateOwnerSpend } from "@/lib/cache"
 
 export async function disconnectEmailAccount(id: string) {
@@ -17,7 +18,7 @@ export async function disconnectEmailAccount(id: string) {
   const ownerId = orgId ?? userId
   await prisma.emailConnection.deleteMany({ where: { id, ownerId } })
 
-  revalidatePath("/receipts")
+  revalidatePath("/connections")
   return { error: null }
 }
 
@@ -38,7 +39,7 @@ export async function triggerEmailScan(emailConnectionId: string) {
     revalidateOwnerSpend(ownerId)
   })
 
-  revalidatePath("/receipts")
+  revalidatePath("/connections")
   return { error: null }
 }
 
@@ -60,23 +61,21 @@ export async function createReceipt(data: {
   const ownerId = orgId ?? userId
   const ownerType: "user" | "org" = orgId ? "org" : "user"
 
-  await prisma.receipt.create({
-    data: {
-      ownerId,
-      ownerType,
-      provider: data.provider || null,
-      amountUsd: data.amountUsd,
-      billingPeriodStart: data.billingPeriodStart ? new Date(data.billingPeriodStart) : null,
-      billingPeriodEnd: data.billingPeriodEnd ? new Date(data.billingPeriodEnd) : null,
-      invoiceId: data.invoiceId || null,
-      usageType: data.usageType ?? "api",
-      source: "receipt_upload",
-      parsedAt: new Date(),
-    },
+  const { duplicate } = await ingestReceipt({
+    ownerId,
+    ownerType,
+    provider: data.provider || null,
+    amountUsd: data.amountUsd,
+    billingPeriodStart: data.billingPeriodStart ? new Date(data.billingPeriodStart) : null,
+    billingPeriodEnd: data.billingPeriodEnd ? new Date(data.billingPeriodEnd) : null,
+    invoiceId: data.invoiceId || null,
+    usageType: data.usageType ?? "api",
+    source: "receipt_upload",
   })
+  if (duplicate) return { error: "A matching receipt already exists." }
 
   revalidateOwnerSpend(ownerId)
-  revalidatePath("/receipts")
+  revalidatePath("/connections")
   revalidatePath("/overview")
   return { error: null }
 }
@@ -112,7 +111,7 @@ export async function updateReceipt(
   })
 
   revalidateOwnerSpend(ownerId)
-  revalidatePath("/receipts")
+  revalidatePath("/connections")
   revalidatePath("/overview")
   return { error: null }
 }
@@ -127,9 +126,12 @@ export async function reclassifyReceipt(id: string, usageType: "api" | "subscrip
     where: { id, ownerId },
     data: { usageType },
   })
+  // Reclassifying to subscription must back the receipt with a Subscription so its cost still
+  // counts (projected), rather than dropping to zero.
+  if (usageType === "subscription") await linkReceiptToSubscription(id)
 
   revalidateOwnerSpend(ownerId)
-  revalidatePath("/receipts")
+  revalidatePath("/connections")
   revalidatePath("/overview")
   return { error: null }
 }
@@ -144,7 +146,7 @@ export async function deleteReceipt(id: string) {
   await prisma.receipt.deleteMany({ where: { id, ownerId } })
 
   revalidateOwnerSpend(ownerId)
-  revalidatePath("/receipts")
+  revalidatePath("/connections")
   revalidatePath("/overview")
   return { error: null }
 }
@@ -184,24 +186,22 @@ export async function uploadReceipt(formData: FormData) {
 
   const ownerType: "user" | "org" = orgId ? "org" : "user"
 
-  await prisma.receipt.create({
-    data: {
-      ownerId,
-      ownerType,
-      provider: parsed.provider,
-      amountUsd: parsed.amountUsd,
-      billingPeriodStart: parsed.billingPeriodStart ? new Date(parsed.billingPeriodStart) : null,
-      billingPeriodEnd: parsed.billingPeriodEnd ? new Date(parsed.billingPeriodEnd) : null,
-      invoiceId: parsed.invoiceId,
-      usageType: parsed.usageType ?? "api",
-      source: "receipt_upload",
-      parsedAt: new Date(),
-      rawContent: `[file: ${file.name}]`,
-    },
+  const { duplicate } = await ingestReceipt({
+    ownerId,
+    ownerType,
+    provider: parsed.provider,
+    amountUsd: parsed.amountUsd,
+    billingPeriodStart: parsed.billingPeriodStart ? new Date(parsed.billingPeriodStart) : null,
+    billingPeriodEnd: parsed.billingPeriodEnd ? new Date(parsed.billingPeriodEnd) : null,
+    invoiceId: parsed.invoiceId,
+    usageType: parsed.usageType ?? "api",
+    source: "receipt_upload",
+    rawContent: `[file: ${file.name}]`,
   })
+  if (duplicate) return { error: "This receipt looks like one you already have." }
 
   revalidateOwnerSpend(ownerId)
-  revalidatePath("/receipts")
+  revalidatePath("/connections")
   revalidatePath("/overview")
   return { error: null }
 }

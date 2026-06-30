@@ -153,3 +153,112 @@ export async function updateGcpProject(connectionId: string, projectId: string) 
   revalidatePath("/connections")
   return { error: null }
 }
+
+// ---- Subscriptions ----------------------------------------------------------------------------
+// Recurring AI plans (ChatGPT Plus, Cursor, Copilot…). Unlike API spend there's no admin key to
+// poll, so these are entered/confirmed manually or via receipts and projected forward on the
+// dashboards (see lib/subscriptions).
+
+export interface SubscriptionInput {
+  name: string
+  provider: string | null
+  amountUsd: number
+  period: "monthly" | "yearly"
+  startDate: string
+}
+
+export async function createSubscription(data: SubscriptionInput) {
+  const { userId, orgId, orgRole, isDemo } = await getOwner()
+  if (isDemo) return DEMO_DISABLED
+  if (!userId) return { error: "Unauthorized" }
+  if (orgId && orgRole === "org:viewer") return { error: "Viewers cannot add subscriptions" }
+
+  if (!data.name.trim()) return { error: "Name is required" }
+  if (!data.amountUsd || data.amountUsd <= 0) return { error: "Amount must be greater than 0" }
+  const start = data.startDate ? new Date(data.startDate) : new Date()
+  if (Number.isNaN(start.getTime())) return { error: "Invalid start date" }
+
+  const ownerId = orgId ?? userId
+  const ownerType: "user" | "org" = orgId ? "org" : "user"
+
+  await prisma.subscription.create({
+    data: {
+      ownerId,
+      ownerType,
+      name: data.name.trim(),
+      provider: data.provider?.trim() || null,
+      amountUsd: data.amountUsd,
+      period: data.period,
+      startDate: startOfDay(start),
+      source: "manual",
+    },
+  })
+
+  revalidateOwnerSpend(ownerId)
+  revalidatePath("/connections")
+  revalidatePath("/overview")
+  return { error: null }
+}
+
+export async function updateSubscription(id: string, data: SubscriptionInput) {
+  const { userId, orgId, orgRole, isDemo } = await getOwner()
+  if (isDemo) return DEMO_DISABLED
+  if (!userId) return { error: "Unauthorized" }
+  if (orgId && orgRole === "org:viewer") return { error: "Viewers cannot edit subscriptions" }
+
+  if (!data.name.trim()) return { error: "Name is required" }
+  if (!data.amountUsd || data.amountUsd <= 0) return { error: "Amount must be greater than 0" }
+  const start = data.startDate ? new Date(data.startDate) : new Date()
+  if (Number.isNaN(start.getTime())) return { error: "Invalid start date" }
+
+  const ownerId = orgId ?? userId
+  await prisma.subscription.updateMany({
+    where: { id, ownerId },
+    data: {
+      name: data.name.trim(),
+      provider: data.provider?.trim() || null,
+      amountUsd: data.amountUsd,
+      period: data.period,
+      startDate: startOfDay(start),
+    },
+  })
+
+  revalidateOwnerSpend(ownerId)
+  revalidatePath("/connections")
+  revalidatePath("/overview")
+  return { error: null }
+}
+
+export async function cancelSubscription(id: string) {
+  const { userId, orgId, orgRole, isDemo } = await getOwner()
+  if (isDemo) return DEMO_DISABLED
+  if (!userId) return { error: "Unauthorized" }
+  if (orgId && orgRole === "org:viewer") return { error: "Viewers cannot change subscriptions" }
+
+  const ownerId = orgId ?? userId
+  // Set an end date so the projection stops accruing after today; keep the row for history.
+  await prisma.subscription.updateMany({
+    where: { id, ownerId, status: "active" },
+    data: { status: "cancelled", endDate: startOfDay(new Date()) },
+  })
+
+  revalidateOwnerSpend(ownerId)
+  revalidatePath("/connections")
+  revalidatePath("/overview")
+  return { error: null }
+}
+
+export async function deleteSubscription(id: string) {
+  const { userId, orgId, orgRole, isDemo } = await getOwner()
+  if (isDemo) return DEMO_DISABLED
+  if (!userId) return { error: "Unauthorized" }
+  if (orgId && orgRole === "org:viewer") return { error: "Viewers cannot delete subscriptions" }
+
+  const ownerId = orgId ?? userId
+  await prisma.subscription.deleteMany({ where: { id, ownerId } })
+
+  revalidateOwnerSpend(ownerId)
+  revalidatePath("/connections")
+  revalidatePath("/overview")
+  return { error: null }
+}

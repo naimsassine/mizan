@@ -16,9 +16,13 @@ import { syncLiteLLMIncremental } from "@/lib/sync/litellm"
 import { scanEmails } from "@/lib/scan-emails"
 import { sendAlertEmail } from "@/lib/send-alert-email"
 import { sendWeeklyDigest } from "@/lib/send-weekly-digest"
+import { subscriptionMtd, type SubscriptionLike } from "@/lib/subscriptions"
 import { startOfDay, startOfWeek, startOfMonth } from "date-fns"
 
-// Called daily by Vercel cron — syncs all active connections then checks budget alerts
+// Hour (server/UTC) at which the once-a-day weekly digest is allowed to send, since the cron runs hourly.
+const DIGEST_HOUR = 6
+
+// Called hourly by Vercel cron — syncs all active connections + mailboxes, then checks budget alerts
 export async function GET(req: Request) {
   // The demo has no real connections to sync and must never call provider APIs / email / Resend.
   if (IS_DEMO) return NextResponse.json({ skipped: "demo" })
@@ -68,12 +72,17 @@ export async function GET(req: Request) {
   // the next dashboard load reflects them instead of waiting out the revalidate window.
   for (const ownerId of ownerIds) revalidateOwnerSpend(ownerId)
 
-  // Send weekly digests to users whose chosen day matches today
-  const todayDow = new Date().getDay() // 0=Sun … 6=Sat
-  const digestUsers = await prisma.userSettings.findMany({
-    where: { weeklyDigest: true, weeklyDigestDay: todayDow },
-    select: { clerkUserId: true },
-  })
+  // Send weekly digests to users whose chosen day matches today. The cron now runs hourly, so gate
+  // to a single hour (06:00 server/UTC) — otherwise the digest would resend every hour on that day.
+  const nowDate = new Date()
+  const todayDow = nowDate.getDay() // 0=Sun … 6=Sat
+  const digestUsers =
+    nowDate.getHours() === DIGEST_HOUR
+      ? await prisma.userSettings.findMany({
+          where: { weeklyDigest: true, weeklyDigestDay: todayDow },
+          select: { clerkUserId: true },
+        })
+      : []
   await Promise.allSettled(digestUsers.map((u) => sendWeeklyDigest(u.clerkUserId)))
 
   return NextResponse.json({
@@ -104,8 +113,9 @@ async function checkBudgetAlerts(ownerId: string) {
     })
     if (existingAlert) continue
 
-    // Calculate current period spend — include both API usage records and receipts
-    const [apiSpend, receiptSpend] = await Promise.all([
+    // Calculate current period spend — mirror the dashboards: API usage records + api-type receipts
+    // + projected subscription cost (subscriptions are the source of truth, not their receipts).
+    const [apiSpend, receiptSpend, subscriptionRows] = await Promise.all([
       prisma.usageRecord.aggregate({
         where: {
           ownerId,
@@ -117,6 +127,7 @@ async function checkBudgetAlerts(ownerId: string) {
       prisma.receipt.aggregate({
         where: {
           ownerId,
+          usageType: "api",
           OR: [
             { billingPeriodStart: { gte: periodStart } },
             { billingPeriodStart: null, parsedAt: { gte: periodStart } },
@@ -126,9 +137,28 @@ async function checkBudgetAlerts(ownerId: string) {
         },
         _sum: { amountUsd: true },
       }),
+      prisma.subscription.findMany({
+        where: {
+          ownerId,
+          startDate: { lte: now },
+          OR: [{ endDate: null }, { endDate: { gte: periodStart } }],
+          ...(rule.provider ? { provider: rule.provider } : {}),
+        },
+        select: { amountUsd: true, period: true, startDate: true, endDate: true, status: true },
+      }),
     ])
 
-    const spendUsd = Number(apiSpend._sum.costUsd ?? 0) + Number(receiptSpend._sum.amountUsd ?? 0)
+    const subs: SubscriptionLike[] = subscriptionRows.map((s) => ({
+      amountUsd: Number(s.amountUsd),
+      period: s.period,
+      startDate: s.startDate,
+      endDate: s.endDate,
+      status: s.status,
+    }))
+    const spendUsd =
+      Number(apiSpend._sum.costUsd ?? 0) +
+      Number(receiptSpend._sum.amountUsd ?? 0) +
+      subscriptionMtd(subs, periodStart, now)
     const threshold = (Number(rule.limitUsd) * rule.alertAtPct) / 100
 
     if (spendUsd >= threshold) {

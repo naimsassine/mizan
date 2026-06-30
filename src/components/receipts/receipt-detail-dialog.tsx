@@ -46,7 +46,7 @@ export function ReceiptDetailDialog({ receipt }: { receipt: ReceiptDetail }) {
               Receipt details
             </DialogTitle>
           </DialogHeader>
-          <dl className="mt-1 space-y-2.5 text-sm">
+          <dl className="mt-1 min-w-0 space-y-2.5 text-sm">
             <Row label="Amount" value={`$${receipt.amountUsd.toFixed(2)}`} mono />
             <Row label="Provider" value={receipt.provider ?? "—"} />
             <Row label="Type" value={receipt.usageType} />
@@ -67,11 +67,11 @@ export function ReceiptDetailDialog({ receipt }: { receipt: ReceiptDetail }) {
           </dl>
 
           {receipt.rawContent && (
-            <div className="mt-2">
+            <div className="mt-2 min-w-0">
               <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-zinc-400">
                 Raw content
               </p>
-              <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-[11px] leading-relaxed text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
+              <pre className="max-h-48 w-full max-w-full overflow-auto whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-[11px] leading-relaxed text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
                 {receipt.rawContent}
               </pre>
             </div>
@@ -85,8 +85,8 @@ export function ReceiptDetailDialog({ receipt }: { receipt: ReceiptDetail }) {
 function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-4">
-      <dt className="text-xs text-zinc-400">{label}</dt>
-      <dd className={`text-xs text-zinc-700 dark:text-zinc-300 ${mono ? "font-mono" : ""} truncate`}>
+      <dt className="shrink-0 text-xs text-zinc-400">{label}</dt>
+      <dd className={`min-w-0 truncate text-xs text-zinc-700 dark:text-zinc-300 ${mono ? "font-mono" : ""}`}>
         {value}
       </dd>
     </div>
