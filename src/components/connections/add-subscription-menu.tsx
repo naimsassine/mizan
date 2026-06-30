@@ -56,9 +56,10 @@ export function AddSubscriptionMenu() {
             <Upload className="text-zinc-500" />
             Upload receipt
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => { if (!blockedInDemo()) window.location.href = "/api/auth/gmail" }}>
+          <DropdownMenuItem onClick={() => { if (!blockedInDemo()) window.location.href = "/api/auth/gmail?scope=subscription" }}>
             <Mail className="text-zinc-500" />
             Connect email
+            <span className="ml-auto text-[10px] text-zinc-400">subs only</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

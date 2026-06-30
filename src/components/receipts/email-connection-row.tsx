@@ -17,6 +17,7 @@ interface Props {
   status: string
   lastScannedAt: Date | null
   lastScanFound: number | null
+  scanScope?: "all" | "subscription"
 }
 
 export function EmailConnectionRow({
@@ -26,6 +27,7 @@ export function EmailConnectionRow({
   status,
   lastScannedAt,
   lastScanFound,
+  scanScope = "all",
 }: Props) {
   const [isPending, startTransition] = useTransition()
   const [scanning, setScanning] = useState(false)
@@ -83,6 +85,14 @@ export function EmailConnectionRow({
             <div className="flex items-center gap-2">
               <p className="text-sm font-medium text-zinc-900">{emailAddress}</p>
               <span className="text-[10px] text-zinc-400 capitalize">{emailProvider}</span>
+              {scanScope === "subscription" && (
+                <Badge
+                  variant="outline"
+                  className="h-4 px-1.5 py-0 text-[10px] bg-zinc-50 text-zinc-500 border-zinc-200"
+                >
+                  subscriptions only
+                </Badge>
+              )}
             </div>
             <p
               className={`mt-0.5 text-xs flex items-center gap-1 ${

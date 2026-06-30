@@ -11,6 +11,8 @@ import {
 } from "recharts"
 import { format, parseISO } from "date-fns"
 import { useTheme } from "next-themes"
+import { useState } from "react"
+import { DayDetailDialog } from "@/components/dashboard/day-detail-dialog"
 
 interface SpendDataPoint {
   date: string
@@ -52,7 +54,7 @@ function CustomTooltip({
             p.value > 0 ? (
               <div key={p.name} className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-sm" style={{ background: p.fill }} />
+                  <span className="h-1.5 w-1.5 rounded-sm" style={{ backgroundColor: p.fill }} />
                   <span className="capitalize text-zinc-400">{p.name}</span>
                 </div>
                 <span className="font-mono tabular-nums text-zinc-600 dark:text-zinc-400">${p.value.toFixed(2)}</span>
@@ -74,6 +76,7 @@ function CustomTooltip({
 export function SpendChart({ data }: SpendChartProps) {
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === "dark"
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
   const apiFill = isDark ? "#e4e4e7" : "#18181b"
   const subFill = isDark ? "#52525b" : "#d4d4d8"
@@ -99,7 +102,16 @@ export function SpendChart({ data }: SpendChartProps) {
   return (
     <div>
       <ResponsiveContainer width="100%" height={200}>
-        <ComposedChart data={chartData} barSize={8} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+        <ComposedChart
+          data={chartData}
+          barSize={8}
+          margin={{ top: 4, right: 0, left: 0, bottom: 0 }}
+          onClick={(state) => {
+            const label = (state as { activeLabel?: string })?.activeLabel
+            if (label) setSelectedDate(label)
+          }}
+          className="cursor-pointer"
+        >
           <XAxis
             dataKey="date"
             tickLine={false}
@@ -136,10 +148,15 @@ export function SpendChart({ data }: SpendChartProps) {
       </ResponsiveContainer>
       {showAvg && (
         <div className="mt-2 flex items-center justify-end gap-1.5">
-          <span className="h-0.5 w-4" style={{ background: avgStroke }} />
+          {/* Tailwind class (not an inline theme-derived color) so the dark variant is resolved by
+              CSS via the pre-hydration `dark` class — avoids an SSR/client hydration mismatch.
+              amber-600 = avgStroke light (#d97706), amber-500 = dark (#f59e0b). */}
+          <span className="h-0.5 w-4 bg-amber-600 dark:bg-amber-500" />
           <span className="text-[10px] text-zinc-400">7-day moving average</span>
         </div>
       )}
+
+      <DayDetailDialog date={selectedDate} onClose={() => setSelectedDate(null)} />
     </div>
   )
 }

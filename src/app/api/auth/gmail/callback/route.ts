@@ -23,17 +23,20 @@ export async function GET(req: NextRequest) {
   }
 
   let stateOrgId: string | null = null
+  let scanScope: "all" | "subscription" = "all"
   try {
     const stateData = JSON.parse(Buffer.from(state, "base64url").toString("utf-8")) as {
       userId: string
       orgId: string | null
       nonce?: string
+      scope?: string
     }
     const storedNonce = req.cookies.get("oauth_nonce")?.value
     if (stateData.userId !== userId || (stateData.nonce && stateData.nonce !== storedNonce)) {
       return NextResponse.redirect(new URL("/connections?error=state_mismatch", req.url))
     }
     stateOrgId = stateData.orgId
+    if (stateData.scope === "subscription") scanScope = "subscription"
   } catch {
     return NextResponse.redirect(new URL("/connections?error=invalid_state", req.url))
   }
@@ -52,6 +55,7 @@ export async function GET(req: NextRequest) {
       update: {
         encCredentials: encrypt(JSON.stringify(tokens)),
         status: "active",
+        scanScope,
       },
       create: {
         ownerId,
@@ -59,6 +63,7 @@ export async function GET(req: NextRequest) {
         emailProvider: "gmail",
         emailAddress: profile.emailAddress,
         encCredentials: encrypt(JSON.stringify(tokens)),
+        scanScope,
       },
     })
 

@@ -15,6 +15,7 @@ import { SubscriptionRow } from "@/components/connections/subscription-row"
 import { EmailConnectionRow } from "@/components/receipts/email-connection-row"
 import { ReceiptDetailDialog } from "@/components/receipts/receipt-detail-dialog"
 import { ReceiptFormDialog } from "@/components/receipts/receipt-form-dialog"
+import { ReceiptDeleteButton } from "@/components/receipts/receipt-delete-button"
 import { ReclassifyBadge } from "@/components/receipts/reclassify-badge"
 import { ProviderIcon } from "@/components/provider-icon"
 import { Card, CardContent } from "@/components/ui/card"
@@ -226,6 +227,7 @@ export default async function ConnectionsPage({
               status={conn.status}
               lastScannedAt={conn.lastScannedAt}
               lastScanFound={conn.lastScanFound}
+              scanScope={conn.scanScope}
             />
           ))}
         </div>
@@ -463,6 +465,7 @@ export default async function ConnectionsPage({
                           usageType: r.usageType,
                         }}
                       />
+                      <ReceiptDeleteButton id={r.id} />
                     </div>
                   </div>
                 ))}

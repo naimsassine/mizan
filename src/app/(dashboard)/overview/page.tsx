@@ -21,6 +21,7 @@ import { subscriptionDailyCost, subscriptionMtd, type SubscriptionLike } from "@
 import OverviewLoading from "./loading"
 import { StatCard } from "@/components/dashboard/stat-card"
 import { SpendChart } from "@/components/dashboard/spend-chart"
+import { TokenHeatmap } from "@/components/dashboard/token-heatmap"
 import { ModelBreakdown } from "@/components/dashboard/model-breakdown"
 import { TimeGreeting } from "@/components/dashboard/time-greeting"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
@@ -58,6 +59,8 @@ function getDashboardData(ownerId: string, chartDays: Range) {
 async function loadDashboardData(ownerId: string, chartDays: Range) {
   const now = new Date()
   const chartFrom = subDays(now, chartDays)
+  // GitHub-style heatmap window: a little over a year so the 53-week grid is fully covered.
+  const activityFrom = subDays(now, 371)
   const monthStart = startOfMonth(now)
   const monthEnd = endOfMonth(now)
   const lastMonthStart = startOfMonth(subMonths(now, 1))
@@ -73,6 +76,7 @@ async function loadDashboardData(ownerId: string, chartDays: Range) {
   const [
     monthlyRecords,
     chartRecords,
+    activityRecords,
     lastMonthRecords,
     connections,
     allReceipts,
@@ -88,6 +92,12 @@ async function loadDashboardData(ownerId: string, chartDays: Range) {
         where: { ownerId, date: { gte: chartFrom } },
         select: { date: true, costUsd: true },
         orderBy: { date: "asc" },
+      }),
+      // Daily token totals for the activity heatmap (last ~53 weeks).
+      prisma.usageRecord.groupBy({
+        by: ["date"],
+        where: { ownerId, date: { gte: activityFrom } },
+        _sum: { inputTokens: true, outputTokens: true, costUsd: true },
       }),
       prisma.usageRecord.findMany({
         where: { ownerId, date: { gte: lastMonthStart, lte: lastMonthEnd } },
@@ -241,6 +251,14 @@ async function loadDashboardData(ownerId: string, chartDays: Range) {
     .map(([date, { api, subscription }]) => ({ date, api, subscription }))
     .sort((a, b) => a.date.localeCompare(b.date))
 
+  // Per-day token totals for the GitHub-style activity heatmap (last ~53 weeks).
+  const activityDays = activityRecords.map((r) => ({
+    date: format(r.date, "yyyy-MM-dd"),
+    tokens: Number(r._sum.inputTokens ?? 0) + Number(r._sum.outputTokens ?? 0),
+    cost: Number(r._sum.costUsd ?? 0),
+  }))
+  const activityEnd = format(now, "yyyy-MM-dd")
+
   const modelRecords = await prisma.usageRecord.groupBy({
     by: ["model", "provider"],
     where: { ownerId, date: { gte: monthStart, lte: monthEnd } },
@@ -264,6 +282,8 @@ async function loadDashboardData(ownerId: string, chartDays: Range) {
     spendDelta,
     totalTokens,
     chartData,
+    activityDays,
+    activityEnd,
     modelRows,
     connections,
     forecastMonthEnd,
@@ -315,6 +335,8 @@ async function OverviewBody({ ownerId, chartDays }: { ownerId: string; chartDays
     spendDelta,
     totalTokens,
     chartData,
+    activityDays,
+    activityEnd,
     modelRows,
     connections,
     forecastMonthEnd,
@@ -502,6 +524,9 @@ async function OverviewBody({ ownerId, chartDays }: { ownerId: string; chartDays
               <SpendChart data={chartData} />
             </CardContent>
           </Card>
+
+          {/* Token activity heatmap */}
+          <TokenHeatmap days={activityDays} endDate={activityEnd} />
 
           {/* Model breakdown */}
           <ModelBreakdown rows={modelRows} />

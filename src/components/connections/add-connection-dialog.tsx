@@ -11,6 +11,7 @@ import { createConnection } from "@/app/(dashboard)/connections/actions"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { blockedInDemo, IS_DEMO } from "@/lib/demo-client"
+import { ProviderIcon } from "@/components/provider-icon"
 
 const providers = [
   {
@@ -226,7 +227,10 @@ export function AddConnectionDialog({ open: openProp, onOpenChange, hideTrigger 
               <SelectContent>
                 {providers.filter((p) => !p.hidden).map((p) => (
                   <SelectItem key={p.value} value={p.value} className="text-sm">
-                    {p.label}
+                    <span className="flex items-center gap-2">
+                      <ProviderIcon provider={p.value} className="h-5 w-5 rounded-md" />
+                      {p.label}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>

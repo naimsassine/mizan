@@ -101,6 +101,9 @@ export async function scanEmails(
       console.log(`[scan-emails] Parsed:`, JSON.stringify(parsed))
       if (!parsed.isAiBillingEmail || parsed.amountUsd === null) continue
 
+      // Subscription-only mailboxes ignore pay-per-token (API) receipts.
+      if (connection.scanScope === "subscription" && parsed.usageType !== "subscription") continue
+
       const { created } = await ingestReceipt({
         ownerId: connection.ownerId,
         ownerType: connection.ownerType,

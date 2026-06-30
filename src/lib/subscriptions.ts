@@ -22,7 +22,7 @@ export interface SubscriptionLike {
 
 // Per-day cost a single subscription contributes on a given day (its period amount spread evenly
 // across that day's month or year). Returns 0 if the subscription isn't active on that day.
-function dailyShareOn(sub: SubscriptionLike, day: Date): number {
+export function dailyShareOn(sub: SubscriptionLike, day: Date): number {
   const d = startOfDay(day).getTime()
   if (d < startOfDay(sub.startDate).getTime()) return 0
   if (sub.endDate && d > startOfDay(sub.endDate).getTime()) return 0

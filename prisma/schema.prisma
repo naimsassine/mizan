@@ -59,6 +59,11 @@ enum EmailProvider {
   outlook
 }
 
+enum EmailScanScope {
+  all
+  subscription
+}
+
 enum SubscriptionStatus {
   active
   cancelled
@@ -130,6 +135,7 @@ model EmailConnection {
   emailProvider  EmailProvider    @default(gmail) @map("email_provider")
   emailAddress   String           @map("email_address")
   encCredentials String           @map("enc_credentials")
+  scanScope      EmailScanScope   @default(all) @map("scan_scope")
   status         ConnectionStatus @default(active)
   lastScannedAt  DateTime?        @map("last_scanned_at")
   lastScanFound  Int?             @map("last_scan_found")

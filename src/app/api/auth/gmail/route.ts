@@ -11,8 +11,11 @@ export async function GET(req: NextRequest) {
   const { userId, orgId } = await auth()
   if (!userId) return NextResponse.redirect(new URL("/sign-in", req.url))
 
+  // Optional ?scope=subscription limits this mailbox to subscription receipts only.
+  const scope = req.nextUrl.searchParams.get("scope") === "subscription" ? "subscription" : "all"
+
   const nonce = randomBytes(16).toString("hex")
-  const state = Buffer.from(JSON.stringify({ userId, orgId, nonce })).toString("base64url")
+  const state = Buffer.from(JSON.stringify({ userId, orgId, nonce, scope })).toString("base64url")
   const url = buildOAuthUrl(state, req.nextUrl.origin)
 
   const response = NextResponse.redirect(url)
